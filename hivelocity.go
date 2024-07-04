@@ -8,32 +8,38 @@ import (
 	"net/http"
 )
 
+// TODO: Make this generic, so that it can be changed from dpl.
 func hivelocityGetCloudInitScript(xnodeId string, xnodeAccessToken string) string {
 	return "#cloud-config \nruncmd: \n - \"mkdir /tmp/boot && mount -t tmpfs -osize=90% none /tmp/boot && mkdir /tmp/boot/__img && wget -q -O /tmp/boot/__img/kexec.tar.xz http://boot.opnm.sh/kexec.tar.xz && mkdir /tmp/boot/system && mkdir /tmp/boot/system/proc && mount -t proc /proc /tmp/boot/system/proc && tar xvf /tmp/boot/__img/kexec.tar.xz -C /tmp/boot/system && rm /tmp/boot/__img/kexec.tar.xz && chroot /tmp/boot/system ./kexec_nixos \\\"-- XNODE_UUID=" + xnodeId + " XNODE_ACCESS_TOKEN=" + xnodeAccessToken + "\\\"\""
 
 }
 
+// If instanceId is "", then we provision. Otherwise, we reset.
 func hivelocityApiProvisionOrReset(hveApiKey, instanceId, xnodeId, xnodeAccessToken string) {
 
-	// TODO: Make more robust, check region availability before provisioning.
-	// Then cycle.
+	// TODO: Make more robust, check region availability before provisioning with /inventory/product/<productid> endpoint.
+	// Also check out /product/<productid>/store endpoint.
 
-	body, err := json.Marshal(map[string]interface{}{
-		"osName": "Ubuntu 22.04 (VPS)",
-		"period": "monthly",
+	body := map[string]interface{}{
+		"osName":   "Ubuntu 22.04 (VPS)",
+		"hostname": "xnode.openmesh.network",
+		"script":   hivelocityGetCloudInitScript(xnodeId, xnodeAccessToken),
+	}
+
+	if instanceId == "" {
+		body["period"] = "monthly"
 		// XXX: Might have to change region depending on settings.
-		"locationName": "NYC1",
-		// "productId": "2313", // Subject to future change (2311 for testing)
+		body["locationName"] = "NYC1"
 
-		// XXX: Change this to custom product id.
-		"productId":   "2311",
-		"hostname":    "xnode.openmesh.network",
-		"forceReload": true,
+		// XXX: Change this to our product id, or load from env?
+		body["productId"] = "2311"
+	} else {
+		body["forceReload"] = true
+	}
 
-		"script": hivelocityGetCloudInitScript(xnodeId, xnodeAccessToken),
-	})
+	jsonBody, err := json.Marshal(body)
 
-	req, err := http.NewRequest("POST", "https://core.hivelocity.net/api/v2/compute/"+instanceId, bytes.NewBuffer(body))
+	req, err := http.NewRequest("POST", "https://core.hivelocity.net/api/v2/compute/"+instanceId, bytes.NewBuffer(jsonBody))
 
 	if err != nil {
 		panic(err)

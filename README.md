@@ -9,7 +9,7 @@ Rewritten due to change in constraints.
     - [X] Add hivelocity provisioning API.
     - [X] Add hivelocity reset API.
     - [ ] Test the APIs work.
-    - [ ] Test if `forceReload` has to be excluded on provision requests.
+    - [ ] Test if `forceReload` has to be excluded from provision requests.
 - [X] Add cloud-init script to both requests.
 - [ ] Add info endpoint.
     - Just parse the hivelocity info endpoint.

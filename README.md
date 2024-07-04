@@ -1,6 +1,6 @@
 # Xnode Unit Controller
-This program manages a postgres database with deployments for Xnodes
-
+This program talks directly with hivelocity to provision Xnode Units / Xnode Ones.
+Rewritten due to change in constraints.
 
 ## TODO
 - [X] Parse env vars to get database info.
@@ -27,4 +27,13 @@ This program manages a postgres database with deployments for Xnodes
 - Gock for request mocking? 
 https://medium.com/zus-health/mocking-outbound-http-requests-in-go-youre-probably-doing-it-wrong-60373a38d2aa
 
-- 
+Create schema:
+```
+CREATE TABLE provisioned_units (
+    id SERIAL PRIMARY KEY,
+    nft VARCHAR(100),
+    provider VARCHAR(255),
+    instance_id VARCHAR(255),
+    activation_date DATE
+);
+```

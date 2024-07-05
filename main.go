@@ -140,42 +140,36 @@ func main() {
 
 				defer tx.Commit()
 
-				row := db.QueryRow("SELECT * FROM deployments WHERE nft IS NULL ORDER BY id")
-				deployment := Deployment{}
-				err = rowToDeployment(row, &deployment)
+				fmt.Println("Provisioning new machine and creating row in database.")
 
-				{
-					fmt.Println("Provisioning new machine and creating row in database.")
-
-					// TODO: Chose sponsor here.
-					row := db.QueryRow(
-						`SELECT sponsor_id, api_key, (CAST(credit_spent AS FLOAT) / CAST(credit_initial AS FLOAT)) AS ratio
+				// TODO: Chose sponsor here.
+				row := db.QueryRow(
+					`SELECT sponsor_id, api_key, (CAST(credit_spent AS FLOAT) / CAST(credit_initial AS FLOAT)) AS ratio
 					FROM sponsors
 					WHERE credit_initial - credit_spent > ($1)
 					ORDER BY ratio ASC;`, vps_cost_yearly)
 
-					sponsor_id := 0
-					ratio := 0.0
-					api_key := ""
+				sponsor_id := 0
+				ratio := 0.0
+				api_key := ""
 
-					err := row.Scan(&sponsor_id, &api_key, &ratio)
+				err = row.Scan(&sponsor_id, &api_key, &ratio)
+
+				if err != nil {
+					fmt.Println("Error couldn't find viable sponsor: ", err.Error())
+				} else {
+					// XXX: Untested.
+					hivelocityApiProvision(api_key, xnodeId, xnodeAccessToken)
+
+					_, err = db.Exec("INSERT INTO deployments (nft, sponsor_id, instance_id, activation_date) VALUES ($1, $2, $3, $4)",
+						nftid, sponsor_id, "placeholder", time.Now())
+
+					db.Exec("UPDATE sponsors SET credit_spent = credit_spent + $1 WHERE sponsor_id = $2;", vps_cost_yearly, sponsor_id)
 
 					if err != nil {
-						fmt.Println("Error couldn't find viable sponsor: ", err.Error())
+						fmt.Println("Error adding new vps to database:", err.Error())
 					} else {
-						// XXX: Untested.
-						hivelocityApiProvision(api_key, xnodeId, xnodeAccessToken)
-
-						_, err = db.Exec("INSERT INTO deployments (nft, sponsor_id, instance_id, activation_date) VALUES ($1, $2, $3, $4)",
-							nftid, sponsor_id, "placeholder", time.Now())
-
-						db.Exec("UPDATE sponsors SET credit_spent = credit_spent + $1 WHERE sponsor_id = $2;", vps_cost_yearly, sponsor_id)
-
-						if err != nil {
-							fmt.Println("Error adding new vps to database:", err.Error())
-						} else {
-							fmt.Println("Added new vps to database.")
-						}
+						fmt.Println("Added new vps to database.")
 					}
 				}
 			} else {

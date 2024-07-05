@@ -144,18 +144,7 @@ func main() {
 				deployment := Deployment{}
 				err = rowToDeployment(row, &deployment)
 
-				if err == nil {
-					// 2nd. Is there an empty slot?
-					fmt.Println("Resetting existing machine and updating database.")
-
-					_, err := db.Exec("WITH first_available AS ( SELECT id, nft FROM deployments WHERE nft IS NULL ORDER BY id LIMIT 1 ) UPDATE deployments SET nft = $1 FROM first_available WHERE deployments.id = first_available.id", nftid)
-
-					if err != nil {
-						fmt.Println("Error updating vps in database:", err.Error())
-					} else {
-						fmt.Println("Updated unused vps in database.")
-					}
-				} else {
+				{
 					fmt.Println("Provisioning new machine and creating row in database.")
 
 					// TODO: Chose sponsor here.

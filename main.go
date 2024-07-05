@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -14,9 +16,9 @@ import (
 )
 
 type Deployment struct {
-	id              sql.NullInt32
+	id              int
 	nft             sql.NullString
-	provider        sql.NullString
+	sponsor_id      int
 	instance_id     sql.NullString
 	activation_date sql.NullTime
 }
@@ -25,15 +27,18 @@ func rowToDeployment(row *sql.Row, deployment *Deployment) error {
 	if deployment == nil {
 		deployment = &Deployment{}
 	}
-	return row.Scan(&deployment.id, &deployment.nft, &deployment.provider, &deployment.instance_id, &deployment.activation_date)
+	return row.Scan(&deployment.id, &deployment.nft, &deployment.sponsor_id, &deployment.instance_id, &deployment.activation_date)
 }
 
 func rowsToDeployment(rows *sql.Rows, deployment *Deployment) error {
 	if deployment == nil {
 		deployment = &Deployment{}
 	}
-	return rows.Scan(&deployment.id, &deployment.nft, &deployment.provider, &deployment.instance_id, &deployment.activation_date)
+	return rows.Scan(&deployment.id, &deployment.nft, &deployment.sponsor_id, &deployment.instance_id, &deployment.activation_date)
 }
+
+var vps_cost_monthly = 9.15
+var vps_cost_yearly = int(math.Ceil((vps_cost_monthly * 12)))
 
 func main() {
 	err := godotenv.Load(".env")
@@ -76,14 +81,10 @@ func main() {
 
 			fmt.Println("Looking through rows.")
 			for rows.Next() {
-				fmt.Println("Ran once?")
 				var deployment Deployment
 
 				rowsToDeployment(rows, &deployment)
-
-				fmt.Println(deployment.provider)
 			}
-
 			rows.Close()
 		}
 	}
@@ -96,6 +97,8 @@ func main() {
 
 		// NOTE: For now we assume all NFTs ids are valid.
 		// We trust DPL to only give reliable data.
+
+		// TODO: Might have to convert date from js format to Go format.
 
 		nftid := c.Param("nftid")
 		xnodeId := "testId"
@@ -118,16 +121,28 @@ func main() {
 
 			fmt.Println("Matched NFT")
 
-			// TODO: Reset hivelocity vps.
 			hivelocityApiReset(hivelocityApiKey, deployment.instance_id.String, xnodeId, xnodeAccessToken)
 			fmt.Println("Already deployed, resetting machine.")
+
+			// XXX: Does the database need an update at all here? I guess not?
 		} else {
 			if err == sql.ErrNoRows {
 				fmt.Println("No such NFT.")
 
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+
+				// XXX: Might have to give this serializeable option to avoid race conditions (Check definition of BeginTx for what to pass).
+				tx, err := db.BeginTx(ctx, nil)
+				if err != nil {
+					panic(err)
+				}
+
+				defer tx.Commit()
+
 				row := db.QueryRow("SELECT * FROM deployments WHERE nft IS NULL ORDER BY id")
 				deployment := Deployment{}
-				err := rowToDeployment(row, &deployment)
+				err = rowToDeployment(row, &deployment)
 
 				if err == nil {
 					// 2nd. Is there an empty slot?
@@ -141,17 +156,37 @@ func main() {
 						fmt.Println("Updated unused vps in database.")
 					}
 				} else {
-					hivelocityApiProvision(hivelocityApiKey, xnodeId, xnodeAccessToken)
-
 					fmt.Println("Provisioning new machine and creating row in database.")
 
-					_, err := db.Exec("INSERT INTO deployments (nft, provider, instance_id, activation_date) VALUES ($1, $2, $3, $4)",
-						nftid, "hivelocity", "placeholder", time.Now())
+					// TODO: Chose sponsor here.
+					row := db.QueryRow(
+						`SELECT sponsor_id, api_key, (CAST(credit_spent AS FLOAT) / CAST(credit_initial AS FLOAT)) AS ratio
+					FROM sponsors
+					WHERE credit_initial - credit_spent > ($1)
+					ORDER BY ratio ASC;`, vps_cost_yearly)
+
+					sponsor_id := 0
+					ratio := 0.0
+					api_key := ""
+
+					err := row.Scan(&sponsor_id, &api_key, &ratio)
 
 					if err != nil {
-						fmt.Println("Error adding new vps to database:", err.Error())
+						fmt.Println("Error couldn't find viable sponsor: ", err.Error())
 					} else {
-						fmt.Println("Added new vps to database.")
+						// XXX: Untested.
+						hivelocityApiProvision(api_key, xnodeId, xnodeAccessToken)
+
+						_, err = db.Exec("INSERT INTO deployments (nft, sponsor_id, instance_id, activation_date) VALUES ($1, $2, $3, $4)",
+							nftid, sponsor_id, "placeholder", time.Now())
+
+						db.Exec("UPDATE sponsors SET credit_spent = credit_spent + $1 WHERE sponsor_id = $2;", vps_cost_yearly, sponsor_id)
+
+						if err != nil {
+							fmt.Println("Error adding new vps to database:", err.Error())
+						} else {
+							fmt.Println("Added new vps to database.")
+						}
 					}
 				}
 			} else {

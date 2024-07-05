@@ -21,12 +21,15 @@ func hivelocityApiProvisionOrReset(hveApiKey, instanceId, xnodeId, xnodeAccessTo
 	// Also check out /product/<productid>/store endpoint.
 
 	body := map[string]interface{}{
-		"osName":   "Ubuntu 22.04 (VPS)",
-		"hostname": "xnode.openmesh.network",
+		"osName": "Ubuntu 22.04 (VPS)",
+		"hostname": xnodeId + ".openmesh.network",
 		"script":   hivelocityGetCloudInitScript(xnodeId, xnodeAccessToken),
 	}
 
+	requestMethod := ""
 	if instanceId == "" {
+		requestMethod = "POST"
+
 		body["period"] = "monthly"
 		// XXX: Might have to change region depending on settings.
 		body["locationName"] = "NYC1"
@@ -34,12 +37,14 @@ func hivelocityApiProvisionOrReset(hveApiKey, instanceId, xnodeId, xnodeAccessTo
 		// XXX: Change this to our product id, or load from env?
 		body["productId"] = "2311"
 	} else {
+		requestMethod = "PUT"
+
 		body["forceReload"] = true
 	}
 
 	jsonBody, err := json.Marshal(body)
 
-	req, err := http.NewRequest("POST", "https://core.hivelocity.net/api/v2/compute/"+instanceId, bytes.NewBuffer(jsonBody))
+	req, err := http.NewRequest(requestMethod, "https://core.hivelocity.net/api/v2/compute/"+instanceId, bytes.NewBuffer(jsonBody))
 
 	if err != nil {
 		panic(err)
@@ -60,7 +65,7 @@ func hivelocityApiProvisionOrReset(hveApiKey, instanceId, xnodeId, xnodeAccessTo
 			panic(err)
 		}
 
-		fmt.Printf("res.Body: %v\n", val)
+		fmt.Printf("res.Body: %v\n", string(val))
 	}
 }
 

@@ -21,11 +21,15 @@ Rewritten due to change in constraints.
     - [X] Provision same machine.
 - [X] Add cloud-init script to both requests.
 - [ ] Integrate into DPL.
+    - [ ] Return expected json.
+    - [ ] Return errors.
 - [ ] Add info endpoint.
     - Just parse the hivelocity info endpoint.
     - Why exactly is this needed? I'll integrate the dpl first and then see what's happened.
 - [ ] Robust error handling.
     - [ ] CTRL+F panic and replace (or keep)
+    - [ ] API calls should return errors on failure.
+    - [ ] Check status code of responses.
 - [ ] Generic cloud-init options converter.
     - Turn arguments to proc cmdline things.
 - [ ] Clean up TODOs.
@@ -48,7 +52,9 @@ Rewritten due to change in constraints.
     - [ ] Make sure there can be no newlines on the strings.
     - [ ] Initial credit amounts have to be in the
         - 50k, 100k, 200k, 500k
+- [ ] Add dpl backend variable.
 - [ ] Include request information on logs.
+    - [ ] Which nft is being targetted at least + XnodeId
 
 ## Before launch
 - [ ] Might have to enable special account permission on subaccount.

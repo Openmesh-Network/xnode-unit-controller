@@ -90,6 +90,8 @@ func main() {
 	}
 
 	r := gin.Default()
+	// XXX: This might cause connection problems on railway, double check that doesn't happen.
+	r.SetTrustedProxies(nil)
 
 	r.POST("/v1/provision/:nftid", func(c *gin.Context) {
 
@@ -157,10 +159,10 @@ func main() {
 					// XXX: Untested.
 
 					// TODO: Need the ip address and the device id.
-					hivelocityApiProvision(api_key, xnodeId, xnodeAccessToken)
+					info := hivelocityApiProvision(api_key, xnodeId, xnodeAccessToken)
 
 					_, err = db.Exec("INSERT INTO deployments (nft, sponsor_id, provider, instance_id, activation_date) VALUES ($1, $2, $3, $4)",
-						nftid, "hivelocity", sponsor_id, "placeholder", date)
+						nftid, "hivelocity", sponsor_id, info.id, date)
 
 					db.Exec("UPDATE sponsors SET credit_spent = credit_spent + $1 WHERE sponsor_id = $2;", vps_cost_yearly, sponsor_id)
 

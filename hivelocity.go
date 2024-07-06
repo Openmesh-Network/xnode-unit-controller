@@ -3,15 +3,45 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"time"
+
+	jp "github.com/buger/jsonparser"
 )
 
 type ServerInfo struct {
 	id        string
 	ipAddress string
+}
+
+func readall(readcloser io.ReadCloser) []byte {
+	data, err := io.ReadAll(readcloser)
+	if err != nil {
+		panic(err)
+	}
+
+	return data
+}
+
+func serverInfoFromResponse(response *http.Response) ServerInfo {
+	data := readall(response.Body)
+	server := ServerInfo{}
+
+	id, err := jp.GetInt(data, "deviceId")
+	if err != nil {
+		panic(err)
+	}
+	server.id = string(id)
+
+	server.ipAddress, err = jp.GetString(data, "primaryIp")
+	if err != nil {
+		panic(err)
+	}
+
+	return server
 }
 
 // TODO: Make this generic, so that it can be changed from dpl without any code changes required.
@@ -31,7 +61,7 @@ func hivelocityGetHeaders(hveApiKey string) http.Header {
 }
 
 // If instanceId is "", then we provision. Otherwise, we reset.
-func hivelocityApiProvisionOrReset(hveApiKey, instanceId, xnodeId, xnodeAccessToken string) {
+func hivelocityApiProvisionOrReset(hveApiKey, instanceId, xnodeId, xnodeAccessToken string) (ServerInfo, error) {
 
 	// TODO: Make more robust, check region availability before provisioning with /inventory/product/<productid> endpoint.
 	// Also check out /product/<productid>/store endpoint.
@@ -44,7 +74,7 @@ func hivelocityApiProvisionOrReset(hveApiKey, instanceId, xnodeId, xnodeAccessTo
 	if isBeingReset {
 		fmt.Println("Shutting down!")
 		// Returns true if the server is shutdown.
-		shutdownOrCheckPower := func(doShutdown bool) bool {
+		shutdownOrCheckPower := func(doShutdown bool) (bool, error) {
 			urlCheck := "https://core.hivelocity.net/api/v2/device/" + instanceId + "/power"
 			urlShutdown := urlCheck + "?action=shutdown"
 
@@ -60,53 +90,83 @@ func hivelocityApiProvisionOrReset(hveApiKey, instanceId, xnodeId, xnodeAccessTo
 
 			req, err := http.NewRequest(method, url, nil)
 			if err != nil {
-				panic(err)
+				return false, err
 			}
 
 			req.Header = header
 			res, err := client.Do(req)
-
-			// Check if the machine is down from api.
-			data := make(map[string]interface{})
-
-			bytes, err := io.ReadAll(res.Body)
 			if err != nil {
 				panic(err)
 			}
 
-			err = json.Unmarshal(bytes, &data)
-			if err != nil {
-				panic(err)
-			}
+			if res.StatusCode != 200 {
+				bytes, err := io.ReadAll(res.Body)
+				if err != nil {
+					panic(err)
+				}
 
-			status, ok := data["powerStatus"]
-			if !ok {
-				fmt.Println("Missing permission to shutdown server.")
-				fmt.Println(data)
-			}
+				if res.StatusCode == 400 {
+					fmt.Println("Request failed, likely because we're trying to deploy while the server is reloading.")
+					return false, errors.New(string(bytes))
+				}
 
-			if status == "OFF" {
-				return false
+				fmt.Println("Here: ", string(bytes))
+
+				panic("Couldn't provide server.")
+				return false, errors.New("Couldn't provide server")
 			} else {
-				return true
+				// Check if the machine is down from api.
+				bytes := readall(res.Body)
+
+				powerStatus, err := jp.GetString(bytes, "powerStatus")
+				if err != nil {
+					fmt.Println("Missing permission to shutdown server.")
+					fmt.Println(string(bytes))
+					return false, err
+				}
+
+				if powerStatus == "OFF" {
+					return false, nil
+				} else {
+					fmt.Println(string(bytes))
+					return true, nil
+				}
 			}
 		}
 
 		const ATTEMPT_MAX_TRIES = 20
 		const ATTEMPT_MAX_WAIT_TIME = time.Millisecond * 800
 
-		// Try shutting down.
-		poweredOn := shutdownOrCheckPower(true)
+		// See if it's on.
+		fmt.Println("Checking if machine is off.")
+		poweredOn, err := shutdownOrCheckPower(false)
 
-		for i := 0; i < ATTEMPT_MAX_TRIES; i++ {
-			poweredOn = shutdownOrCheckPower(false)
-
-			if !poweredOn {
-				break
+		if poweredOn {
+			fmt.Println("It's on, shutting down.")
+			// If it's not try shutting down.
+			poweredOn, err = shutdownOrCheckPower(true)
+			if err != nil {
+				return ServerInfo{}, err
 			}
 
-			// Need to wait between attempts.
-			time.Sleep(time.Millisecond * 500)
+			fmt.Println("Sent shutdown machine command.")
+			if poweredOn {
+				for attempt := 0; attempt < ATTEMPT_MAX_TRIES; attempt++ {
+					fmt.Println("Checking if machine is powered off. Attempt:", attempt)
+					poweredOn, err = shutdownOrCheckPower(false)
+
+					if err != nil {
+						return ServerInfo{}, err
+					}
+
+					if !poweredOn {
+						break
+					}
+
+					// Need to wait between attempts.
+					time.Sleep(time.Millisecond * 500)
+				}
+			}
 		}
 
 		if !poweredOn {
@@ -114,7 +174,7 @@ func hivelocityApiProvisionOrReset(hveApiKey, instanceId, xnodeId, xnodeAccessTo
 			fmt.Println("Succesfully shut machine down.")
 		} else {
 			// Not good, there's some issue.
-			fmt.Println("Failed to shutdown machine. Max timeout exceeded or ")
+			fmt.Println("Failed to shutdown machine. Max timeout exceeded.")
 		}
 	}
 
@@ -154,37 +214,35 @@ func hivelocityApiProvisionOrReset(hveApiKey, instanceId, xnodeId, xnodeAccessTo
 	fmt.Println("Sending request:", req.URL)
 
 	if err != nil {
-		panic(err)
+		return ServerInfo{}, err
 	}
 
 	res, err := client.Do(req)
 
 	if err != nil {
-		panic(err)
+		return ServerInfo{}, err
 	} else {
-		val, err := io.ReadAll(res.Body)
-		if err != nil {
-			panic(err)
-		}
-
-		fmt.Printf("res.Body: %v\n", string(val))
+		// TODO: Check code not ok!
+		return serverInfoFromResponse(res), nil
 	}
 }
 
-func hivelocityApiProvision(hveApiKey, xnodeId, xnodeAccessToken string) {
+func hivelocityApiProvision(hveApiKey, xnodeId, xnodeAccessToken string) ServerInfo {
 	// NOTE: In terms of Hivelocity's api this is the same as provisioning fresh.
 	// XXX: Re-enable later, disabling because I don't want to spend any money.
 	// Make a stubbed version that just cycles over known instances?
-	return
+	fmt.Println("WARNING: Disabled provisioning for now.")
+	return ServerInfo{}
 
-	hivelocityApiProvisionOrReset(hveApiKey, "", xnodeId, xnodeAccessToken)
+	// XXX: Re-enable this.
+	// hivelocityApiProvisionOrReset(hveApiKey, "", xnodeId, xnodeAccessToken)
 }
 
-func hivelocityApiReset(hveApiKey, instanceId, xnodeId, xnodeAccessToken string) {
-	hivelocityApiProvisionOrReset(hveApiKey, instanceId, xnodeId, xnodeAccessToken)
+func hivelocityApiReset(hveApiKey, instanceId, xnodeId, xnodeAccessToken string) (ServerInfo, error) {
+	return hivelocityApiProvisionOrReset(hveApiKey, instanceId, xnodeId, xnodeAccessToken)
 }
 
-func hivelocityApiInfo(hveApiKey, instanceId string) {
+func hivelocityApiInfo(hveApiKey, instanceId string) (ServerInfo, error) {
 	client := &http.Client{}
 	header := hivelocityGetHeaders(hveApiKey)
 
@@ -197,17 +255,17 @@ func hivelocityApiInfo(hveApiKey, instanceId string) {
 
 	res, err := client.Do(req)
 	if err != nil {
-		panic(err)
+		return ServerInfo{}, err
 	}
 
-	data := make(map[string]interface{})
-	body, err := io.ReadAll(res.Body)
-	if err != nil {
-		panic(err)
+	if res.StatusCode != 200 {
+		bytes, err := io.ReadAll(res.Body)
+		if err != nil {
+			panic(err)
+		}
+
+		return ServerInfo{}, errors.New(string(bytes))
 	}
 
-	err = json.Unmarshal(body, &data)
-	if err != nil {
-		panic(err)
-	}
+	return serverInfoFromResponse(res), nil
 }

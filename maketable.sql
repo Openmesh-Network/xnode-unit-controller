@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS deployments (
 	id SERIAL PRIMARY KEY,
 	sponsor_id INT,
 	FOREIGN KEY (sponsor_id) REFERENCES sponsors(sponsor_id),
+	provider VARCHAR(100),
 	nft VARCHAR(100),
 	instance_id VARCHAR(200),
 	activation_date DATE
@@ -19,10 +20,13 @@ SELECT CAST(credit_spent AS FLOAT) / CAST(credit_initial AS FLOAT)
 FROM sponsors;
 
 /* Get the sponsor with the lowest ratio that still has enough money to pay for one machine for a year. */
-/* Note that "9.15 * 12" is a placeholder */
+/*
 SELECT sponsor_id, api_key, (CAST(credit_spent AS FLOAT) / CAST(credit_initial AS FLOAT)) AS ratio
 FROM sponsors
 WHERE credit_initial - credit_spent > (9.15 * 12)
 ORDER BY ratio ASC;
+*/
 
-/* UPDATE sponsors SET credit_spent = credit_spent + 20 WHERE sponsor_id = 0; */
+/* 
+UPDATE sponsors SET credit_spent = credit_spent + $1 WHERE sponsor_id = $2;
+*/

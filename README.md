@@ -3,38 +3,41 @@ Rewritten due to change in constraints.
 
 ## TODO
 - [X] Parse env vars to get database info.
-- [o] Add provision endpoint.
+- [O] Add provision endpoint.
     - [X] Database logic.
     - [X] Add hivelocity provisioning API.
-    - [.] Add hivelocity reset API.
-        - [ ] Shutdown
-        - [ ] Wait
+    - [X] Add hivelocity reset API.
+        - [X] Shutdown
+        - [X] Wait
         - [X] Provision
-    - [ ] Test the APIs work.
+    - [o] Test the APIs work.
+        - [X] Test reset API works.
         - [ ] Set provision api to do round robin over known keys
             - We know that the api for deploy and for provision return the same json anyways, so we should be good.
 - [X] Add transactions to avoid race conditions!
-- [ ] Modify database logic for new tables.
-- [ ] Retest database logic.
-    - [ ] Provision new machine.
-    - [ ] Provision same machine.
+- [X] Modify database logic for new tables.
+- [X] Retest database logic.
+    - [X] Provision new machine.
+    - [X] Provision same machine.
 - [X] Add cloud-init script to both requests.
+- [ ] Integrate into DPL.
 - [ ] Add info endpoint.
     - Just parse the hivelocity info endpoint.
+    - Why exactly is this needed? I'll integrate the dpl first and then see what's happened.
 - [ ] Robust error handling.
     - [ ] CTRL+F panic and replace (or keep)
 - [ ] Generic cloud-init options converter.
     - Turn arguments to proc cmdline things.
-- [ ] Clean up TODOs
+- [ ] Clean up TODOs.
 - [ ] Generate table if not provided.
     - Use the sql file?
-- [ ] Integrate into DPL.
 - [ ] What does SSL mode do? Might have to enable it for railway?
 - [X] Add new table for sponsors
     - [X] Api keys
     - [X] Associate each deployment with a sponsor id
 - [ ] Associate metadata with each request?
     - Can use **tags** for this in hivelocity API.
+        - [ ] Ask hivelocity maximum size for tags in API.
     - Could come in handy if we have to trace machines.
     - Data to store:
         - Xnode UUID
@@ -42,6 +45,7 @@ Rewritten due to change in constraints.
         - Sponsor ID
         - NFT ID
 - [ ] Add constrains to prevent data entry errors?
+    - [ ] Make sure there can be no newlines on the strings.
     - [ ] Initial credit amounts have to be in the
         - 50k, 100k, 200k, 500k
 - [ ] Include request information on logs.

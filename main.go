@@ -19,6 +19,7 @@ type Deployment struct {
 	id              int
 	nft             sql.NullString
 	sponsor_id      int
+	provider        string
 	instance_id     sql.NullString
 	activation_date sql.NullTime
 }
@@ -71,14 +72,13 @@ func main() {
 		}
 	}
 
-	{ // XXX: Delete this, it's just for reference
+	{ // XXX: Delete this, it's just for reference.
 		rows, err := db.Query("SELECT * FROM deployments")
 		defer rows.Close()
 
 		if err != nil {
 			panic(err)
 		} else {
-
 			fmt.Println("Looking through rows.")
 			for rows.Next() {
 				var deployment Deployment
@@ -93,8 +93,6 @@ func main() {
 
 	r.POST("/v1/provision/:nftid", func(c *gin.Context) {
 
-		fmt.Println("This ran?")
-
 		// NOTE: For now we assume all NFTs ids are valid.
 		// We trust DPL to only give reliable data.
 
@@ -103,8 +101,9 @@ func main() {
 		nftid := c.Param("nftid")
 		xnodeId := "testId"
 		xnodeAccessToken := "dummyAccessToken"
+		date := time.Now()
 
-		// TODO: Add independent verification of NFT.
+		// XXX: Add independent verification of NFT.
 		fmt.Println(nftid)
 
 		row := db.QueryRow("SELECT * FROM deployments WHERE nft = $1", nftid)
@@ -112,27 +111,24 @@ func main() {
 		err := rowToDeployment(row, &deployment)
 
 		if err == nil {
-			// 1st. Is the NFT already in the database?
-
 			if !deployment.instance_id.Valid {
 				fmt.Println("No instance for deployment id: ", deployment.id)
 				panic("")
 			}
 
-			fmt.Println("Matched NFT")
+			fmt.Println("Found NFT in deployments table.")
 
+			fmt.Println("Resetting...")
 			hivelocityApiReset(hivelocityApiKey, deployment.instance_id.String, xnodeId, xnodeAccessToken)
-			fmt.Println("Already deployed, resetting machine.")
-
-			// XXX: Does the database need an update at all here? I guess not?
+			fmt.Println("Reset!")
 		} else {
 			if err == sql.ErrNoRows {
-				fmt.Println("No such NFT.")
+				fmt.Println("Didn't find NFT in database.")
 
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 
-				// XXX: Might have to give this serializeable option to avoid race conditions (Check definition of BeginTx for what to pass).
+				// XXX: Might have to give this serializeable option to avoid race conditions (Check definition of BeginTx for what args to pass).
 				tx, err := db.BeginTx(ctx, nil)
 				if err != nil {
 					panic(err)
@@ -159,10 +155,12 @@ func main() {
 					fmt.Println("Error couldn't find viable sponsor: ", err.Error())
 				} else {
 					// XXX: Untested.
+
+					// TODO: Need the ip address and the device id.
 					hivelocityApiProvision(api_key, xnodeId, xnodeAccessToken)
 
-					_, err = db.Exec("INSERT INTO deployments (nft, sponsor_id, instance_id, activation_date) VALUES ($1, $2, $3, $4)",
-						nftid, sponsor_id, "placeholder", time.Now())
+					_, err = db.Exec("INSERT INTO deployments (nft, sponsor_id, provider, instance_id, activation_date) VALUES ($1, $2, $3, $4)",
+						nftid, "hivelocity", sponsor_id, "placeholder", date)
 
 					db.Exec("UPDATE sponsors SET credit_spent = credit_spent + $1 WHERE sponsor_id = $2;", vps_cost_yearly, sponsor_id)
 

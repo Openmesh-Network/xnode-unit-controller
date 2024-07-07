@@ -6,10 +6,12 @@ Rewritten due to change in constraints.
 - [O] Add provision endpoint.
     - [X] Database logic.
     - [X] Add hivelocity provisioning API.
-    - [X] Add hivelocity reset API.
+    - [O] Add hivelocity reset API.
         - [X] Shutdown
         - [X] Wait
-        - [X] Provision
+        - [o] Provision
+            - [X] API
+            - [ ] Hivelocity marks the servers as "verification" status for whatever reason .
     - [o] Test the APIs work.
         - [X] Test reset API works.
         - [ ] Set provision api to do round robin over known keys
@@ -20,18 +22,24 @@ Rewritten due to change in constraints.
     - [X] Provision new machine.
     - [X] Provision same machine.
 - [X] Add cloud-init script to both requests.
-- [ ] Integrate into DPL.
-    - [ ] Return expected json.
-    - [ ] Return errors.
-- [ ] Add info endpoint.
+- [X] Integrate into DPL.
+    - [X] Read parameters from request body.
+    - [X] Return expected json.
+    - [X] Return errors.
+- [X] Add info endpoint.
     - Just parse the hivelocity info endpoint.
     - Why exactly is this needed? I'll integrate the dpl first and then see what's happened.
-- [ ] Robust error handling.
-    - [ ] CTRL+F panic and replace (or keep)
-    - [ ] API calls should return errors on failure.
-    - [ ] Check status code of responses.
-- [ ] Generic cloud-init options converter.
-    - Turn arguments to proc cmdline things.
+- [ ] Re-enable the provisioning.
+    - [ ] SAD, hivelocity doesn't always provision servers on our account. Have started a chat with them on slack, but can't do anything until they confirm what's going on.
+- [ ] Add mock provisioning.
+    - [ ] Add an environment variable that "provisions" by resetting a machine from an existing set of machines instead of actually deploying a new vps every time.
+    - This would massively simplify testing.
+- [X] Estimate cost based on NFT time not just 12 month time.
+    - Take NFT activation date (From DPL) and assign enough credit for 12 - months since activation time.
+    - Rounded up!
+- [X] Robust error handling.
+    - [X] API calls should return errors on failure.
+    - [X] Check status code of responses.
 - [ ] Clean up TODOs.
 - [ ] Generate table if not provided.
     - Use the sql file?
@@ -39,22 +47,24 @@ Rewritten due to change in constraints.
 - [X] Add new table for sponsors
     - [X] Api keys
     - [X] Associate each deployment with a sponsor id
-- [ ] Associate metadata with each request?
+- [X] Associate metadata with each request?
     - Can use **tags** for this in hivelocity API.
-        - [ ] Ask hivelocity maximum size for tags in API.
+        - [X] Ask hivelocity maximum size for tags in API.
     - Could come in handy if we have to trace machines.
     - Data to store:
-        - Xnode UUID
+        - [X] Xnode UUID
         - Xnode Controller ID
         - Sponsor ID
         - NFT ID
-- [ ] Add constrains to prevent data entry errors?
+- [ ] Add new cloud-init script.
+- [ ] Add more constraints to database to prevent entry errors?
     - [ ] Make sure there can be no newlines on the strings.
-    - [ ] Initial credit amounts have to be in the
-        - 50k, 100k, 200k, 500k
-- [ ] Add dpl backend variable.
-- [ ] Include request information on logs.
+    - [ ] Credits should be minimum 1k maybe?
+- [ ] Improve logs so that they include request information.
     - [ ] Which nft is being targetted at least + XnodeId
+## Maybe worth exploring?
+- [ ] Generic cloud-init options converter.
+    - Turn arguments to proc cmdline things.
 
 ## Before launch
 - [ ] Might have to enable special account permission on subaccount.

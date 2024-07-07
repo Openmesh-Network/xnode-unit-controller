@@ -7,7 +7,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"time"
+
+	"strconv"
 
 	jp "github.com/buger/jsonparser"
 )
@@ -26,15 +29,41 @@ func readall(readcloser io.ReadCloser) []byte {
 	return data
 }
 
+func isResponseSuccessful(response *http.Response) bool {
+	if response.StatusCode >= 200 && response.StatusCode <= 299 {
+		return true
+	} else {
+		return false
+	}
+}
+
+func messageFromResponse(response *http.Response) string {
+	data, err := io.ReadAll(response.Body)
+
+	if err != nil {
+		return ""
+	} else {
+		message, err := jp.GetString(data, "message")
+
+		if err != nil {
+			return ""
+		} else {
+			return message
+		}
+	}
+}
+
 func serverInfoFromResponse(response *http.Response) ServerInfo {
 	data := readall(response.Body)
 	server := ServerInfo{}
+
+	fmt.Println(string(data))
 
 	id, err := jp.GetInt(data, "deviceId")
 	if err != nil {
 		panic(err)
 	}
-	server.id = string(id)
+	server.id = strconv.Itoa(int(id))
 
 	server.ipAddress, err = jp.GetString(data, "primaryIp")
 	if err != nil {
@@ -45,8 +74,8 @@ func serverInfoFromResponse(response *http.Response) ServerInfo {
 }
 
 // TODO: Make this generic, so that it can be changed from dpl without any code changes required.
-func hivelocityGetCloudInitScript(xnodeId, xnodeAccessToken string) string {
-	return "#cloud-config \nruncmd: \n - \"mkdir /tmp/boot && mount -t tmpfs -osize=90% none /tmp/boot && mkdir /tmp/boot/__img && wget -q -O /tmp/boot/__img/kexec.tar.xz http://boot.opnm.sh/kexec.tar.xz && mkdir /tmp/boot/system && mkdir /tmp/boot/system/proc && mount -t proc /proc /tmp/boot/system/proc && tar xvf /tmp/boot/__img/kexec.tar.xz -C /tmp/boot/system && rm /tmp/boot/__img/kexec.tar.xz && chroot /tmp/boot/system ./kexec_nixos \\\"-- XNODE_UUID=" + xnodeId + " XNODE_ACCESS_TOKEN=" + xnodeAccessToken + "\\\"\""
+func hivelocityGetCloudInitScript(xnodeId, xnodeAccessToken, xnodeConfigRemote string) string {
+	return "#cloud-config \nruncmd: \n - \"mkdir /tmp/boot && mount -t tmpfs -osize=90% none /tmp/boot && mkdir /tmp/boot/__img && wget -q -O /tmp/boot/__img/kexec.tar.xz http://boot.opnm.sh/kexec.tar.xz && mkdir /tmp/boot/system && mkdir /tmp/boot/system/proc && mount -t proc /proc /tmp/boot/system/proc && tar xvf /tmp/boot/__img/kexec.tar.xz -C /tmp/boot/system && rm /tmp/boot/__img/kexec.tar.xz && chroot /tmp/boot/system ./kexec_nixos \\\"-- XNODE_UUID=" + xnodeId + " XNODE_ACCESS_TOKEN=" + xnodeAccessToken + " XNODE_CONFIG_REMOTE=" + xnodeConfigRemote + "\\\"\""
 
 }
 
@@ -61,7 +90,7 @@ func hivelocityGetHeaders(hveApiKey string) http.Header {
 }
 
 // If instanceId is "", then we provision. Otherwise, we reset.
-func hivelocityApiProvisionOrReset(hveApiKey, instanceId, xnodeId, xnodeAccessToken string) (ServerInfo, error) {
+func hivelocityApiProvisionOrReset(hveApiKey, instanceId, xnodeId, xnodeAccessToken, xnodeConfigRemote string) (ServerInfo, error) {
 
 	// TODO: Make more robust, check region availability before provisioning with /inventory/product/<productid> endpoint.
 	// Also check out /product/<productid>/store endpoint.
@@ -99,30 +128,13 @@ func hivelocityApiProvisionOrReset(hveApiKey, instanceId, xnodeId, xnodeAccessTo
 				panic(err)
 			}
 
-			if res.StatusCode != 200 {
-				bytes, err := io.ReadAll(res.Body)
-				if err != nil {
-					panic(err)
-				}
-
-				if res.StatusCode == 400 {
-					fmt.Println("Request failed, likely because we're trying to deploy while the server is reloading.")
-					return false, errors.New(string(bytes))
-				}
-
-				fmt.Println("Here: ", string(bytes))
-
-				panic("Couldn't provide server.")
-				return false, errors.New("Couldn't provide server")
-			} else {
+			if isResponseSuccessful(res) {
 				// Check if the machine is down from api.
 				bytes := readall(res.Body)
 
 				powerStatus, err := jp.GetString(bytes, "powerStatus")
 				if err != nil {
-					fmt.Println("Missing permission to shutdown server.")
-					fmt.Println(string(bytes))
-					return false, err
+					return false, errors.New("Failed to shutdown server.")
 				}
 
 				if powerStatus == "OFF" {
@@ -131,15 +143,36 @@ func hivelocityApiProvisionOrReset(hveApiKey, instanceId, xnodeId, xnodeAccessTo
 					fmt.Println(string(bytes))
 					return true, nil
 				}
+			} else {
+				_, err := io.ReadAll(res.Body)
+				if err != nil {
+					return false, errors.New("Hivelocity API didn't return a valid response body on shutdown / info request.")
+				}
+
+				if res.StatusCode == 400 {
+					message := "Request failed, likely because we're trying to deploy while the server is reloading. Error response: " + messageFromResponse(res)
+					return false, errors.New(message)
+				} else if res.StatusCode == 403 {
+					message := "Request failed, authorization invalid."
+					fmt.Println(message)
+					return false, errors.New(message)
+				}
+
+				fmt.Println("Code should never reach this point. This means our API key doesn't have authorization. Error response: ", messageFromResponse(res), res.StatusCode)
+				return false, errors.New("Couldn't provide server.")
 			}
 		}
 
 		const ATTEMPT_MAX_TRIES = 20
-		const ATTEMPT_MAX_WAIT_TIME = time.Millisecond * 800
+		const ATTEMPT_COOLDOWN_TIME = time.Millisecond * 1500
 
 		// See if it's on.
 		fmt.Println("Checking if machine is off.")
 		poweredOn, err := shutdownOrCheckPower(false)
+
+		if err != nil {
+			return ServerInfo{}, err
+		}
 
 		if poweredOn {
 			fmt.Println("It's on, shutting down.")
@@ -152,7 +185,7 @@ func hivelocityApiProvisionOrReset(hveApiKey, instanceId, xnodeId, xnodeAccessTo
 			fmt.Println("Sent shutdown machine command.")
 			if poweredOn {
 				for attempt := 0; attempt < ATTEMPT_MAX_TRIES; attempt++ {
-					fmt.Println("Checking if machine is powered off. Attempt:", attempt)
+					fmt.Println("Checking if machine is powered off. Attempt:", attempt+1)
 					poweredOn, err = shutdownOrCheckPower(false)
 
 					if err != nil {
@@ -164,7 +197,7 @@ func hivelocityApiProvisionOrReset(hveApiKey, instanceId, xnodeId, xnodeAccessTo
 					}
 
 					// Need to wait between attempts.
-					time.Sleep(time.Millisecond * 500)
+					time.Sleep(ATTEMPT_COOLDOWN_TIME)
 				}
 			}
 		}
@@ -174,19 +207,22 @@ func hivelocityApiProvisionOrReset(hveApiKey, instanceId, xnodeId, xnodeAccessTo
 			fmt.Println("Succesfully shut machine down.")
 		} else {
 			// Not good, there's some issue.
-			fmt.Println("Failed to shutdown machine. Max timeout exceeded.")
+			return ServerInfo{}, errors.New("Failed to shutdown machine. Max timeout exceeded.")
 		}
 	}
 
 	body := map[string]interface{}{
 		"osName":   "Ubuntu 22.04 (VPS)",
 		"hostname": xnodeId + ".openmesh.network",
-		"script":   hivelocityGetCloudInitScript(xnodeId, xnodeAccessToken),
+		"script":   hivelocityGetCloudInitScript(xnodeId, xnodeAccessToken, xnodeConfigRemote),
 		"tags": []string{
 			"XNODE_UUID=" + xnodeId,
+			"XNODE_CONFIG_REMOTE=" + xnodeConfigRemote,
 
 			// XXX: Do we want this here?
-			"XNODE_ACCESS_TOKEN=" + xnodeAccessToken,
+			// Uncommenting this means anyone with the API key could pretend to be the xnode.
+			// Being cautious for now.
+			// "XNODE_ACCESS_TOKEN=" + xnodeAccessToken,
 		},
 	}
 
@@ -200,10 +236,10 @@ func hivelocityApiProvisionOrReset(hveApiKey, instanceId, xnodeId, xnodeAccessTo
 
 		body["period"] = "monthly"
 		// XXX: Might have to change region depending on settings.
-		body["locationName"] = "NYC1"
+		body["locationName"] = "TPA2"
 
 		// XXX: Change this to our product id, or load from env?
-		body["productId"] = "2311"
+		body["productId"] = "2379"
 	}
 
 	jsonBody, err := json.Marshal(body)
@@ -222,24 +258,43 @@ func hivelocityApiProvisionOrReset(hveApiKey, instanceId, xnodeId, xnodeAccessTo
 	if err != nil {
 		return ServerInfo{}, err
 	} else {
-		// TODO: Check code not ok!
-		return serverInfoFromResponse(res), nil
+
+		if isResponseSuccessful(res) {
+			info := serverInfoFromResponse(res)
+			fmt.Println("Got info: ", info)
+			return info, nil
+		} else {
+			message := messageFromResponse(res)
+			return ServerInfo{}, errors.New("Failed to reset or provision. Error: " + message)
+		}
 	}
 }
 
-func hivelocityApiProvision(hveApiKey, xnodeId, xnodeAccessToken string) ServerInfo {
-	// NOTE: In terms of Hivelocity's api this is the same as provisioning fresh.
-	// XXX: Re-enable later, disabling because I don't want to spend any money.
-	// Make a stubbed version that just cycles over known instances?
-	fmt.Println("WARNING: Disabled provisioning for now.")
-	return ServerInfo{}
+func hivelocityApiProvision(hveApiKey, xnodeId, xnodeAccessToken, xnodeConfigRemote string) (ServerInfo, error) {
 
-	// XXX: Re-enable this.
-	// hivelocityApiProvisionOrReset(hveApiKey, "", xnodeId, xnodeAccessToken)
+	fmt.Println("WARNING: Provisioning is disabled for now until hivelocity .")
+
+	if os.Getenv("MOCK_PROVISIONING") == "1" {
+		// Chose random machine and reset instead
+
+		// TODO: Implement this?
+		fmt.Println("Hack, instead of provisioning a full machine. We instead hard code an instance id to always reset")
+		id := "39817"
+		return hivelocityApiProvisionOrReset(hveApiKey, id, xnodeId, xnodeAccessToken, xnodeConfigRemote)
+	} else {
+		// XXX: Re-enable later, disabling because:
+		//	- Hivelocity has a bug where they mark their machine's status as "verification" which then pauses provisioning for like hours for some reason.
+		//		It might have to do with billing? Reaching out to their support.
+
+		return ServerInfo{}, nil
+
+		// NOTE: This is the code that actually provisions a machine. Disabled because hivelocity isn't actually providing these?
+		return hivelocityApiProvisionOrReset(hveApiKey, "", xnodeId, xnodeAccessToken, xnodeConfigRemote)
+	}
 }
 
-func hivelocityApiReset(hveApiKey, instanceId, xnodeId, xnodeAccessToken string) (ServerInfo, error) {
-	return hivelocityApiProvisionOrReset(hveApiKey, instanceId, xnodeId, xnodeAccessToken)
+func hivelocityApiReset(hveApiKey, instanceId, xnodeId, xnodeAccessToken, xnodeConfigRemote string) (ServerInfo, error) {
+	return hivelocityApiProvisionOrReset(hveApiKey, instanceId, xnodeId, xnodeAccessToken, xnodeConfigRemote)
 }
 
 func hivelocityApiInfo(hveApiKey, instanceId string) (ServerInfo, error) {
@@ -258,14 +313,9 @@ func hivelocityApiInfo(hveApiKey, instanceId string) (ServerInfo, error) {
 		return ServerInfo{}, err
 	}
 
-	if res.StatusCode != 200 {
-		bytes, err := io.ReadAll(res.Body)
-		if err != nil {
-			panic(err)
-		}
-
-		return ServerInfo{}, errors.New(string(bytes))
+	if isResponseSuccessful(res) {
+		return serverInfoFromResponse(res), nil
+	} else {
+		return ServerInfo{}, errors.New(messageFromResponse(res))
 	}
-
-	return serverInfoFromResponse(res), nil
 }

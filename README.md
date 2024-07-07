@@ -1,6 +1,46 @@
 # Xnode Unit Controller This program talks directly with hivelocity to provision Xnode Units / Xnode Ones.
 Rewritten due to change in constraints.
 
+
+## How it works roughly:
+
+There's two tables:
+1. sponsors
+    - Api key for sponsor
+    - Initial credit
+    - Credit spent
+2. deployment
+    - Deployment id (Just a number)
+    - Nft
+    - Sponsor id
+    - Provider (Just "hivelocity" for now)
+    - Instance id (The deviceId in hivelocity API for reset)
+    - Activation date (The date the machine was provisioned, not nft redeem time)
+
+On provision request the server checks if the nft is in the deployment table.
+If it is, then it will get the API key from the sponsor table (By doing a join on the ID), and reset the machine (Requires shutting down and other stuff unfortunately).
+If it's not, then it will run the provision request and return the info.
+
+## How to use:
+
+1. Make a new postgres database and create the tables using the `maketable.sql` file as reference.
+2. Add login details to env vars, follow .env.sample format.
+3. Run `go run .` to start the server.
+4. Add at least on sponsor to the sponsor table: 
+    1. Set the credits to at least 1000, since each server is about $110 of credit.
+    2. Set the API key to an API key you control.
+
+Now you should be able to do:
+`curl -X POST http://localhost:8080/provision/<NFT-ID>`
+
+And also:
+`curl -X POST http://localhost:8080/info/<NFT-ID>`
+
+For testing, set all the sponsors to the same API key and manually call the endpoint.
+
+Also, there's currently (7-7-2024) an issue with hivelocity where they mark the servers deployed with our product id on their api as "verification" status.
+So, until that's fixed we can't really test it completely (Since we need the API to return an ip for the system to work).
+
 ## TODO
 - [X] Parse env vars to get database info.
 - [O] Add provision endpoint.
@@ -76,59 +116,10 @@ Rewritten due to change in constraints.
 - [ ] Make a production version:
     - [ ] Make sure the env vars match to the postgres database.
 - [ ] Make sure it plugs into the DPL
+- [ ] Ability to manually disable accounts from provisioning new servers. Just add a boolean.
             
 ## Nice to have
 - [X] Add sample env.
-
-# New Strategy for sponsor accounts
-I can get the credit from the account.
-Then I can reserve the maximum number of servers (Multiplying by 11.5 months OR 12 months), setting the NFT field to NULL.
-After that I have one database with all the sponsors.
-
-Alternative plan:
-- Steps 1, 2 for provision endpoint stay the same
-- Only provision servers when requested, with same logic as before.
-- We go sequentially through the providers and just go by order added.
-    1. Check credit.
-    2. If credit can afford a server for 1 year, provision a server (steps 2, or 3).
-    3. If we're out of credit, trip a flag that marks the account as empty.
-This needs to be unfuckable!!!!
-
-- [ ] Add SQL transactions for race conditions!!!
-- [ ] Might have to do round robbin, but how do I keep it asynchronous?
-    - Could do best effort?
-        - We prioritize the sponsor with the lowest credit / deployment ratio first.
-        - OR we prioritize lowest spent credits first? (But ideally we'd have a ratio, yes?)
-
-- [ ] Does the credit go down right away? Or is it only for show.
-    - Harry says it does. Will have to test myself though.
-    - Also might have to add extra padding just in case the timing doesn't work out.
-    - Doesn't matter lol. Well, kind of does but don't really need it.
-
-Might have to do round robbin of accounts for this to make sense.
-
-**When I reset a server I treat the credits the same way I do provisioning? (ONLY ON CASE 2).**
-
-What I need is total / initial credits. And then reserved credits?
-- Should this be put in manually somehow?
-- How is this put into the database?
-    - Have a simple website / script that generates all this stuff and double checks?
-        - Write API key down for sponsor.
-        - Checks it's correct.
-        - Sets the credit amount.
-    - Have an API on the xu controller that does this?
-        - Would have to expose to internet. NOT GOOD!
-        - Make a script that does this? But isn't connected to the database?
-            - Have a boolean for enabled?
-            - Called a bit in SQL, make it default to 0 (false)
-    - 
-
-Still need an internal credits tracker for credits.
-- Have initial + stored.
-
-Safety measures:
-- [ ] Ability to manually disable accounts from provisioning new servers.
-- [ ] .
 
 ## On Security
 - Data (Most importantly sponsor API keys) would ONLY be leaked if:

@@ -204,7 +204,7 @@ func main() {
 	// XXX: This might cause connection problems on railway, double check that doesn't happen.
 	r.SetTrustedProxies(nil)
 
-	r.POST("/v1/provision/:nftid", func(c *gin.Context) {
+	r.POST("/provision/:nftid", func(c *gin.Context) {
 		// TODO: Actually parse these.
 		nftId := c.Param("nftid")
 
@@ -230,7 +230,7 @@ func main() {
 		}
 	})
 
-	r.POST("/v1/info/:nftid", func(c *gin.Context) {
+	r.POST("/info/:nftid", func(c *gin.Context) {
 
 		nftId := c.Param("nftid")
 		row := db.QueryRow("SELECT api_key, instance_id FROM deployments NATURAL JOIN sponsors WHERE nft = $1", nftId)

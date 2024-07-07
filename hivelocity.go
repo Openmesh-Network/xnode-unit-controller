@@ -286,8 +286,6 @@ func hivelocityApiProvision(hveApiKey, xnodeId, xnodeAccessToken, xnodeConfigRem
 		//	- Hivelocity has a bug where they mark their machine's status as "verification" which then pauses provisioning for like hours for some reason.
 		//		It might have to do with billing? Reaching out to their support.
 
-		return ServerInfo{}, nil
-
 		// NOTE: This is the code that actually provisions a machine. Disabled because hivelocity isn't actually providing these?
 		return hivelocityApiProvisionOrReset(hveApiKey, "", xnodeId, xnodeAccessToken, xnodeConfigRemote)
 	}

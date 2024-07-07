@@ -78,7 +78,7 @@ Rewritten due to change in constraints.
 - [ ] Make sure it plugs into the DPL
             
 ## Nice to have
-- [ ] Add sample env.
+- [X] Add sample env.
 
 # New Strategy for sponsor accounts
 I can get the credit from the account.

@@ -158,16 +158,17 @@ func provision(db *sql.DB, nftId, xnodeId, xnodeAccessToken, xnodeConfigRemote s
 func main() {
 	err := godotenv.Load(".env")
 	if err != nil {
-		panic("Couldn't load env variables. Is .env not defined?")
+		fmt.Println("Couldn't load env variables. Is .env not defined?")
 	}
+	user := os.Getenv("DB_USER")
+	dbName := os.Getenv("DB_NAME")
+	dbPass := os.Getenv("DB_PASSWORD")
+	dbHost := os.Getenv("DB_HOST")
+	dbPort := os.Getenv("DB_PORT")
 
 	connectString := fmt.Sprintf(
 		"user=%s dbname=%s password=%s host=%s port=%s sslmode=disable",
-		os.Getenv("DB_USER"),
-		os.Getenv("DB_NAME"),
-		os.Getenv("DB_PASSWORD"),
-		os.Getenv("DB_HOST"),
-		os.Getenv("DB_PORT"))
+		user, dbName, dbPass, dbHost, dbPort)
 
 	db, err := sql.Open("postgres", connectString)
 	defer db.Close()

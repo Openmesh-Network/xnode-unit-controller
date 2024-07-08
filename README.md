@@ -26,7 +26,7 @@ If it's not, then it will run the provision request and return the info.
 1. Make a new postgres database and create the tables using the `maketable.sql` file as reference.
 2. Add login details to env vars, follow .env.sample format.
 3. Run `go run .` to start the server.
-4. Add at least on sponsor to the sponsor table: 
+4. Add at least one sponsor to the sponsor table: 
     1. Set the credits to at least 1000, since each server is about $110 of credit.
     2. Set the API key to an API key you control.
 

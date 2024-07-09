@@ -75,7 +75,7 @@ func serverInfoFromResponse(response *http.Response) ServerInfo {
 
 // TODO: Make this generic, so that it can be changed from dpl without any code changes required.
 func hivelocityGetCloudInitScript(xnodeId, xnodeAccessToken, xnodeConfigRemote string) string {
-	return "#cloud-config \nruncmd: \n - \"mkdir /tmp/boot && mount -t tmpfs -osize=90% none /tmp/boot && mkdir /tmp/boot/__img && wget -q -O /tmp/boot/__img/kexec.tar.xz http://boot.opnm.sh/kexec.tar.xz && mkdir /tmp/boot/system && mkdir /tmp/boot/system/proc && mount -t proc /proc /tmp/boot/system/proc && tar xvf /tmp/boot/__img/kexec.tar.xz -C /tmp/boot/system && rm /tmp/boot/__img/kexec.tar.xz && chroot /tmp/boot/system ./kexec_nixos \\\"-- XNODE_UUID=" + xnodeId + " XNODE_ACCESS_TOKEN=" + xnodeAccessToken + " XNODE_CONFIG_REMOTE=" + xnodeConfigRemote + "\\\"\""
+	return "#cloud-config \nruncmd: \n - \"mkdir /tmp/boot && mount -t tmpfs -osize=90% none /tmp/boot && mkdir /tmp/boot/__img && wget -q -O /tmp/boot/__img/kexec.tar.xz http://boot.opnm.sh/kexec.tar.xz && mkdir /tmp/boot/system && mkdir /tmp/boot/system/proc && mount -t proc /proc /tmp/boot/system/proc && tar xvf /tmp/boot/__img/kexec.tar.xz -C /tmp/boot/system && rm /tmp/boot/__img/kexec.tar.xz && chroot /tmp/boot/system ./kexec_nixos \\\"-- XNODE_UUID=" + xnodeId + " XNODE_ACCESS_TOKEN=" + xnodeAccessToken + " XNODE_CONFIG_REMOTE=" + xnodeConfigRemote + "AVOID_NEWLINE=1"
 
 }
 
@@ -220,9 +220,9 @@ func hivelocityApiProvisionOrReset(hveApiKey, instanceId, xnodeId, xnodeAccessTo
 			"XNODE_CONFIG_REMOTE=" + xnodeConfigRemote,
 
 			// XXX: Do we want this here?
-			// Uncommenting this means anyone with the API key could pretend to be the xnode.
+			// Uncommenting this means anyone with the API key can control the xnode.
 			// Being cautious for now.
-			// "XNODE_ACCESS_TOKEN=" + xnodeAccessToken,
+			// "XNODE_ACCESS_TOKEN=" + xnodeAccessToken_DELETEME,
 		},
 	}
 

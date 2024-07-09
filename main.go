@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net/http"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -25,6 +26,23 @@ type Deployment struct {
 	activation_date sql.NullTime
 }
 
+type ProvisionRequestBody struct {
+	XnodeId           string `json:"xnodeId"`
+	XnodeAccessToken  string `json:"xnodeAccessToken"`
+	XnodeConfigRemote string `json:"xnodeConfigRemote"`
+	NftActivationTime string `json:"nftActivationTime"`
+}
+
+func parseProvisionReq(provisionReq ProvisionRequestBody) (string, string, string, time.Time) {
+	activationTime, err := time.Parse(time.RFC3339, provisionReq.NftActivationTime)
+	if err != nil {
+		fmt.Println("Unable to parse nft activation time.", provisionReq.NftActivationTime)
+	} else {
+		fmt.Println(activationTime)
+	}
+	return provisionReq.XnodeId, provisionReq.XnodeAccessToken, provisionReq.XnodeConfigRemote, activationTime
+}
+
 func rowToDeployment(row *sql.Row, deployment *Deployment) error {
 	if deployment == nil {
 		deployment = &Deployment{}
@@ -42,12 +60,11 @@ func rowsToDeployment(rows *sql.Rows, deployment *Deployment) error {
 var vpsCostMonthly = 9.15
 var vpsCostyearly = math.Ceil((vpsCostMonthly * 12))
 
-func provision(db *sql.DB, nftId, xnodeId, xnodeAccessToken, xnodeConfigRemote string, timeNFTMinted time.Time) (ServerInfo, error) {
+func provision(db *sql.DB, nftId string, xnodeId string, xnodeAccessToken string, xnodeConfigRemote string, timeNFTMinted time.Time) (ServerInfo, error) {
 	// NOTE: For now we assume all NFTs ids are valid.
 	// We trust DPL to only give reliable data.
 
 	// XXX: Add independent verification of NFT.
-	fmt.Println(nftId)
 
 	row := db.QueryRow("SELECT * FROM deployments WHERE nft = $1", nftId)
 	deployment := Deployment{}
@@ -98,13 +115,16 @@ func provision(db *sql.DB, nftId, xnodeId, xnodeAccessToken, xnodeConfigRemote s
 			projectedCost := vpsCostyearly
 			{
 				difference := time.Now().Unix() - timeNFTMinted.Unix()
+				fmt.Println(time.Time(timeNFTMinted))
 				if difference < 0 {
 					panic("NFT minted in the future or clock is out of date.")
 				}
 
 				// Assuming 730 hours in a month.
+				fmt.Println("Time difference: ", difference)
 				monthsDifference := math.Floor(float64(difference) / (60 * 60 * 730))
 				if monthsDifference > 12 {
+					fmt.Println("Months difference: ", monthsDifference)
 					return ServerInfo{}, errors.New("Got expired NFT.")
 				}
 
@@ -124,6 +144,7 @@ func provision(db *sql.DB, nftId, xnodeId, xnodeAccessToken, xnodeConfigRemote s
 			err = row.Scan(&sponsorId, &apiKey, &ratio)
 
 			if err != nil {
+				// TODO: Return "Capacity reached, try again later" to the user.
 				return ServerInfo{}, errors.New("Error couldn't find viable sponsor: " + err.Error())
 			} else {
 				// XXX: Untested.
@@ -206,15 +227,18 @@ func main() {
 	r.SetTrustedProxies(nil)
 
 	r.POST("/provision/:nftid", func(c *gin.Context) {
-		// TODO: Actually parse these.
 		nftId := c.Param("nftid")
 
-		xnodeId := c.GetString("xnodeId")
-		xnodeAccessToken := c.GetString("xnodeAccessToken")
-		xnodeConfigRemote := c.GetString("xnodeConfigRemote")
-		nftActivationTime := c.GetTime("nftActivationTime")
-
-		info, err := provision(db, nftId, xnodeId, xnodeAccessToken, xnodeConfigRemote, nftActivationTime)
+		var requestBody ProvisionRequestBody
+		if err := c.BindJSON(&requestBody); err != nil {
+			c.JSON(http.StatusBadRequest, map[string]string{
+				"message": "Invalid request",
+			})
+			return
+		}
+		// TODO: Sanity check on data parsed to requestBody
+		uuid, psk, remote, activationTime := parseProvisionReq(requestBody)
+		info, err := provision(db, nftId, uuid, psk, remote, activationTime)
 
 		if err != nil {
 			fmt.Println("Error in provision request.")

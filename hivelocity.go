@@ -41,11 +41,13 @@ func messageFromResponse(response *http.Response) string {
 	data, err := io.ReadAll(response.Body)
 
 	if err != nil {
+		fmt.Println("Error reading response: ", err)
 		return ""
 	} else {
-		message, err := jp.GetString(data, "message")
+		message, err := jp.GetString(data)
 
 		if err != nil {
+			fmt.Println("Error reading response: ", err)
 			return ""
 		} else {
 			return message
@@ -65,7 +67,7 @@ func serverInfoFromResponse(response *http.Response) ServerInfo {
 	}
 	server.id = strconv.Itoa(int(id))
 
-	server.ipAddress, err = jp.GetString(data, "primaryIp")
+	server.ipAddress, err = jp.GetString(data, "primaryIp") // TODO: Can be null, need to avoid handling any json vars like this.
 	if err != nil {
 		panic(err)
 	}
@@ -75,7 +77,7 @@ func serverInfoFromResponse(response *http.Response) ServerInfo {
 
 // TODO: Make this generic, so that it can be changed from dpl without any code changes required.
 func hivelocityGetCloudInitScript(xnodeId, xnodeAccessToken, xnodeConfigRemote string) string {
-	return "#cloud-config \nruncmd: \n - \"mkdir /tmp/boot && mount -t tmpfs -osize=90% none /tmp/boot && mkdir /tmp/boot/__img && wget -q -O /tmp/boot/__img/kexec.tar.xz http://boot.opnm.sh/kexec.tar.xz && mkdir /tmp/boot/system && mkdir /tmp/boot/system/proc && mount -t proc /proc /tmp/boot/system/proc && tar xvf /tmp/boot/__img/kexec.tar.xz -C /tmp/boot/system && rm /tmp/boot/__img/kexec.tar.xz && chroot /tmp/boot/system ./kexec_nixos \\\"-- XNODE_UUID=" + xnodeId + " XNODE_ACCESS_TOKEN=" + xnodeAccessToken + " XNODE_CONFIG_REMOTE=" + xnodeConfigRemote + "AVOID_NEWLINE=1"
+	return "#cloud-config \nruncmd: \n - \"mkdir /tmp/boot && mount -t tmpfs -osize=90% none /tmp/boot && mkdir /tmp/boot/__img && wget -q -O /tmp/boot/__img/kexec.tar.xz http://boot.opnm.sh/kexec.tar.xz && mkdir /tmp/boot/system && mkdir /tmp/boot/system/proc && mount -t proc /proc /tmp/boot/system/proc && tar xvf /tmp/boot/__img/kexec.tar.xz -C /tmp/boot/system && rm /tmp/boot/__img/kexec.tar.xz && chroot /tmp/boot/system ./kexec_nixos -- XNODE_UUID=" + xnodeId + " XNODE_ACCESS_TOKEN=" + xnodeAccessToken + " XNODE_CONFIG_REMOTE=" + xnodeConfigRemote + " AVOID_NEWLINE=1 \""
 
 }
 
@@ -236,22 +238,23 @@ func hivelocityApiProvisionOrReset(hveApiKey, instanceId, xnodeId, xnodeAccessTo
 
 		body["period"] = "monthly"
 		// XXX: Might have to change region depending on settings.
-		body["locationName"] = "TPA2"
+		body["locationName"] = "TPA2" // TODO: Needs to decide this using capacity information.
 
 		// XXX: Change this to our product id, or load from env?
 		body["productId"] = "2379"
 	}
 
 	jsonBody, err := json.Marshal(body)
+	if err != nil {
+		fmt.Println("Failed to marshal body of request. Error: ", err)
+	}
 
 	req, err := http.NewRequest(requestMethod, "https://core.hivelocity.net/api/v2/compute/"+instanceId, bytes.NewBuffer(jsonBody))
-	req.Header = header
-
-	fmt.Println("Sending request:", req.URL)
-
 	if err != nil {
 		return ServerInfo{}, err
 	}
+	req.Header = header
+	fmt.Println("Sending request:", req.URL)
 
 	res, err := client.Do(req)
 

@@ -115,16 +115,13 @@ func provision(db *sql.DB, nftId string, xnodeId string, xnodeAccessToken string
 			projectedCost := vpsCostyearly
 			{
 				difference := time.Now().Unix() - timeNFTMinted.Unix()
-				fmt.Println(time.Time(timeNFTMinted))
 				if difference < 0 {
 					panic("NFT minted in the future or clock is out of date.")
 				}
 
 				// Assuming 730 hours in a month.
-				fmt.Println("Time difference: ", difference)
 				monthsDifference := math.Floor(float64(difference) / (60 * 60 * 730))
 				if monthsDifference > 12 {
-					fmt.Println("Months difference: ", monthsDifference)
 					return ServerInfo{}, errors.New("Got expired NFT.")
 				}
 

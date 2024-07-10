@@ -10,7 +10,8 @@ import (
 const baseUrl = "http://127.0.0.1:8080"
 
 func TestInfo(t *testing.T) {
-	nftId := "66638962393212801359315401625300803155691041113216855832713493800930215134027"
+	//nftId := "66638962393212801359315401625300803155691041113216855832713493800930215134027"
+	nftId := "78754463791077132556305196583841820451073308244165952054046138079426471331474"
 	requestUrl := fmt.Sprintf("%s/info/%s", baseUrl, nftId)
 
 	t.Log(requestUrl)
@@ -61,10 +62,7 @@ func TestProvision(t *testing.T) {
 			t.Fatal(resp.StatusCode)
 		}
 		respBody := readall(resp.Body)
-		if err != nil {
-			t.Fatal(err)
-		} else {
-			t.Log(string(respBody))
-		}
+		t.Log(string(respBody))
+
 	}
 }

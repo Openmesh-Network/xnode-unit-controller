@@ -14,8 +14,10 @@ import (
 )
 
 type ServerInfo struct {
-	Id        int    `json:"deviceId"`
-	IpAddress string `json:"primaryIp"`
+	Id          int    `json:"deviceId"`
+	IpAddress   string `json:"primaryIp"`
+	Location    string `json:"locationName"`
+	PowerStatus string `json:"powerStatus"`
 }
 
 func readall(readcloser io.ReadCloser) []byte {
@@ -144,17 +146,15 @@ func hivelocityApiProvisionOrReset(hveApiKey, instanceId, xnodeId, xnodeAccessTo
 
 			if isResponseSuccessful(res) {
 				// Check if the machine is down from api.
-				bytes := readall(res.Body)
-
-				powerStatus, err := jp.GetString(bytes, "powerStatus")
+				info := serverInfoFromResponse(res)
 				if err != nil {
 					return false, errors.New("Failed to shutdown server.")
 				}
-
-				if powerStatus == "OFF" {
+				fmt.Printf("Found instance %d had power status: %s", info.Id, info.PowerStatus)
+				if info.PowerStatus == "OFF" {
 					return false, nil
 				} else {
-					fmt.Println(string(bytes))
+					fmt.Println(info)
 					return true, nil
 				}
 			} else {
@@ -288,21 +288,17 @@ func hivelocityApiProvisionOrReset(hveApiKey, instanceId, xnodeId, xnodeAccessTo
 
 func hivelocityApiProvision(hveApiKey, xnodeId, xnodeAccessToken, xnodeConfigRemote string) (ServerInfo, error) {
 
-	fmt.Println("WARNING: Provisioning is disabled for now until hivelocity .")
-
 	if os.Getenv("MOCK_PROVISIONING") == "1" {
 		// Chose random machine and reset instead
-
-		// TODO: Implement this?
+		// TODO: Implement this? ^
 		fmt.Println("Hack, instead of provisioning a full machine. We instead hard code an instance id to always reset")
 		id := "39817"
 		return hivelocityApiProvisionOrReset(hveApiKey, id, xnodeId, xnodeAccessToken, xnodeConfigRemote)
 	} else {
-		// XXX: Re-enable later, disabling because:
-		//	- Hivelocity has a bug where they mark their machine's status as "verification" which then pauses provisioning for like hours for some reason.
-		//		It might have to do with billing? Reaching out to their support.
+		// XXX: Hivelocity puts pending charges on a credit card if you provision anything for the account, regardless of invoicing.
+		//	- In this case, Hivelocity marks the machine's status as "verification" which then pauses provisioning.
+		//		Working with them to fix this in production.
 
-		// NOTE: This is the code that actually provisions a machine. Disabled because hivelocity isn't actually providing these?
 		return hivelocityApiProvisionOrReset(hveApiKey, "", xnodeId, xnodeAccessToken, xnodeConfigRemote)
 	}
 }

@@ -144,10 +144,8 @@ func provision(db *sql.DB, nftId string, xnodeId string, xnodeAccessToken string
 				// TODO: Return "Capacity reached, try again later" to the user in frontend.
 				return ServerInfo{}, errors.New("Error couldn't find viable sponsor: " + err.Error())
 			} else {
-				// XXX: Untested.
 
 				info, err := hivelocityApiProvision(apiKey, xnodeId, xnodeAccessToken, xnodeConfigRemote)
-
 				if err != nil {
 					return ServerInfo{}, err
 				}

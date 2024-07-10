@@ -47,14 +47,14 @@ func rowToDeployment(row *sql.Row, deployment *Deployment) error {
 	if deployment == nil {
 		deployment = &Deployment{}
 	}
-	return row.Scan(&deployment.id, &deployment.sponsor_id, &deployment.nft, &deployment.provider, &deployment.instance_id, &deployment.activation_date)
+	return row.Scan(&deployment.id, &deployment.sponsor_id, &deployment.provider, &deployment.nft, &deployment.instance_id, &deployment.activation_date)
 }
 
 func rowsToDeployment(rows *sql.Rows, deployment *Deployment) error {
 	if deployment == nil {
 		deployment = &Deployment{}
 	}
-	return rows.Scan(&deployment.id, &deployment.sponsor_id, &deployment.nft, &deployment.provider, &deployment.instance_id, &deployment.activation_date)
+	return rows.Scan(&deployment.id, &deployment.sponsor_id, &deployment.provider, &deployment.nft, &deployment.instance_id, &deployment.activation_date)
 }
 
 var vpsCostMonthly = 9.15
@@ -130,9 +130,9 @@ func provision(db *sql.DB, nftId string, xnodeId string, xnodeAccessToken string
 
 			row := db.QueryRow(
 				`SELECT sponsor_id, api_key, (CAST(credit_spent AS FLOAT) / CAST(credit_initial AS FLOAT)) AS ratio
-					FROM sponsors
-					WHERE credit_initial - credit_spent > ($1)
-					ORDER BY ratio ASC;`, projectedCost)
+				FROM sponsors
+				WHERE credit_initial - credit_spent > ($1)
+				ORDER BY ratio ASC;`, projectedCost)
 
 			sponsorId := 0
 			ratio := 0.0
@@ -141,7 +141,7 @@ func provision(db *sql.DB, nftId string, xnodeId string, xnodeAccessToken string
 			err = row.Scan(&sponsorId, &apiKey, &ratio)
 
 			if err != nil {
-				// TODO: Return "Capacity reached, try again later" to the user.
+				// TODO: Return "Capacity reached, try again later" to the user in frontend.
 				return ServerInfo{}, errors.New("Error couldn't find viable sponsor: " + err.Error())
 			} else {
 				// XXX: Untested.
@@ -155,7 +155,7 @@ func provision(db *sql.DB, nftId string, xnodeId string, xnodeAccessToken string
 				// Calculate the yearly cost
 
 				_, err = db.Exec("INSERT INTO deployments (nft, sponsor_id, provider, instance_id, activation_date) VALUES ($1, $2, $3, $4, $5)",
-					nftId, sponsorId, "hivelocity", info.id, timeNFTMinted)
+					nftId, sponsorId, "hivelocity", info.Id, timeNFTMinted)
 
 				fmt.Println("Adding new server to database with a projected cost of: ", projectedCost)
 				db.Exec("UPDATE sponsors SET credit_spent = credit_spent + $1 WHERE sponsor_id = $2;", projectedCost, sponsorId)
@@ -188,18 +188,17 @@ func main() {
 		"user=%s dbname=%s password=%s host=%s port=%s sslmode=disable",
 		user, dbName, dbPass, dbHost, dbPort)
 
-	db, err := sql.Open("postgres", connectString)
-	defer db.Close()
+	db, dbErr := sql.Open("postgres", connectString)
 
-	if err != nil {
-		panic(err)
+	if dbErr != nil {
+		panic(dbErr)
+	}
+	defer db.Close()
+	ping := db.Ping()
+	if ping == nil {
+		fmt.Println("Successfully connected to database.")
 	} else {
-		err := db.Ping()
-		if err == nil {
-			fmt.Println("Successfully connected to database.")
-		} else {
-			panic("Failed to connect to database.")
-		}
+		panic("Failed to connect to database.")
 	}
 
 	{ // XXX: Delete this, it's just for reference.
@@ -214,6 +213,7 @@ func main() {
 				var deployment Deployment
 
 				rowsToDeployment(rows, &deployment)
+				fmt.Println("Entries", deployment.nft)
 			}
 			rows.Close()
 		}
@@ -246,15 +246,15 @@ func main() {
 		} else {
 			fmt.Println(info)
 			c.JSON(200, map[string]interface{}{
-				"id":        info.id,
-				"ipAddress": info.ipAddress,
+				"id":        info.Id,
+				"ipAddress": info.IpAddress,
 			})
 		}
 	})
 
-	r.POST("/info/:nftid", func(c *gin.Context) {
-
+	r.GET("/info/:nftid", func(c *gin.Context) {
 		nftId := c.Param("nftid")
+
 		row := db.QueryRow("SELECT api_key, instance_id FROM deployments NATURAL JOIN sponsors WHERE nft = $1", nftId)
 
 		apiKey := ""
@@ -269,8 +269,8 @@ func main() {
 				c.JSON(400, "Failed to find hivelocity.")
 			} else {
 				c.JSON(200, map[string]interface{}{
-					"id":        info.id,
-					"ipAddress": info.ipAddress,
+					"id":        info.Id,
+					"ipAddress": info.IpAddress,
 				})
 			}
 		}

@@ -120,6 +120,9 @@ So, until that's fixed we can't really test it completely (Since we need the API
             
 ## Nice to have
 - [X] Add sample env.
+- [ ] Better error handling
+    - [ ] Resetting a machine while it still reloading.
+    - [ ] ALWAYS write provisioned servers to the postgres! Clean up panics to avoid skipping that step.
 
 ## On Security
 - Data (Most importantly sponsor API keys) would ONLY be leaked if:

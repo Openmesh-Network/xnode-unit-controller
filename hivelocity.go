@@ -10,14 +10,12 @@ import (
 	"os"
 	"time"
 
-	"strconv"
-
 	jp "github.com/buger/jsonparser"
 )
 
 type ServerInfo struct {
-	id        string
-	ipAddress string
+	Id        int    `json:"deviceId"`
+	IpAddress string `json:"primaryIp"`
 }
 
 func readall(readcloser io.ReadCloser) []byte {
@@ -56,29 +54,43 @@ func messageFromResponse(response *http.Response) string {
 }
 
 func serverInfoFromResponse(response *http.Response) ServerInfo {
-	data := readall(response.Body)
-	server := ServerInfo{}
+	var server ServerInfo
+	data, readErr := io.ReadAll(response.Body)
+	if readErr != nil {
+		fmt.Println("Error reading response: ", readErr)
+		return ServerInfo{}
+	}
 
 	fmt.Println(string(data))
 
-	id, err := jp.GetInt(data, "deviceId")
-	if err != nil {
-		panic(err)
+	jsonErr := json.Unmarshal(data, &server)
+	if jsonErr != nil {
+		fmt.Println("Error reading response: ", jsonErr)
+		return ServerInfo{}
 	}
-	server.id = strconv.Itoa(int(id))
-
-	server.ipAddress, err = jp.GetString(data, "primaryIp") // TODO: Can be null, need to avoid handling any json vars like this.
-	if err != nil {
-		panic(err)
-	}
+	fmt.Println(server)
 
 	return server
 }
 
 // TODO: Make this generic, so that it can be changed from dpl without any code changes required.
-func hivelocityGetCloudInitScript(xnodeId, xnodeAccessToken, xnodeConfigRemote string) string {
-	return "#cloud-config \nruncmd: \n - \"mkdir /tmp/boot && mount -t tmpfs -osize=90% none /tmp/boot && mkdir /tmp/boot/__img && wget -q -O /tmp/boot/__img/kexec.tar.xz http://boot.opnm.sh/kexec.tar.xz && mkdir /tmp/boot/system && mkdir /tmp/boot/system/proc && mount -t proc /proc /tmp/boot/system/proc && tar xvf /tmp/boot/__img/kexec.tar.xz -C /tmp/boot/system && rm /tmp/boot/__img/kexec.tar.xz && chroot /tmp/boot/system ./kexec_nixos -- XNODE_UUID=" + xnodeId + " XNODE_ACCESS_TOKEN=" + xnodeAccessToken + " XNODE_CONFIG_REMOTE=" + xnodeConfigRemote + " AVOID_NEWLINE=1 \""
+func hivelocityGetCloudInitKexecScript(xnodeId string, xnodeAccessToken string, xnodeConfigRemote string) string {
+	init := "#cloud-config \nruncmd: \n - "
+	ramfs := "\"mkdir /tmp/boot && mount -t tmpfs -osize=90% none /tmp/boot && mkdir /tmp/boot/__img && "
+	getArtifact := "wget -q -O /tmp/boot/__img/kexec.tar.xz http://boot.opnm.sh/kexec.tar.xz && "
+	procInit := "mkdir /tmp/boot/system && mkdir /tmp/boot/system/proc && mount -t proc /proc /tmp/boot/system/proc && "
+	unpackAndKexec := "tar xvf /tmp/boot/__img/kexec.tar.xz -C /tmp/boot/system && rm /tmp/boot/__img/kexec.tar.xz && chroot /tmp/boot/system ./kexec_nixos"
+	kparams := "-- XNODE_UUID=" + xnodeId + " XNODE_ACCESS_TOKEN=" + xnodeAccessToken + " XNODE_CONFIG_REMOTE=" + xnodeConfigRemote + " AVOID_NEWLINE=1 \""
+	return init + ramfs + getArtifact + procInit + unpackAndKexec + kparams
+}
 
+func hivelocityGetCloudInitScript(xnodeId string, xnodeAccessToken string, xnodeConfigRemote string) string {
+	init := "#cloud-config \nruncmd: \n - "
+	pullXnodeAssimilate := "curl https://raw.githubusercontent.com/Openmesh-Network/XnodeOS-assimilate/dev/xnodeos-assimilate | "
+	acceptDestroySystem := `ACCEPT_DESTRUCTION_OF_SYSTEM=\"Yes, destroy my system and delete all of my data. I know what I'm doing.\" `
+	KernelParams := "XNODE_KERNEL_EXTRA_PARAMS=1 XNODE_UUID=" + xnodeId + " XNODE_ACCESS_TOKEN=" + xnodeAccessToken + " XNODE_CONFIG_REMOTE=" + xnodeConfigRemote
+	log := ` bash 2>&1 | tee /tmp/assimilate.log`
+	return init + pullXnodeAssimilate + acceptDestroySystem + KernelParams + log
 }
 
 func hivelocityGetHeaders(hveApiKey string) http.Header {
@@ -209,7 +221,7 @@ func hivelocityApiProvisionOrReset(hveApiKey, instanceId, xnodeId, xnodeAccessTo
 			fmt.Println("Succesfully shut machine down.")
 		} else {
 			// Not good, there's some issue.
-			return ServerInfo{}, errors.New("Failed to shutdown machine. Max timeout exceeded.")
+			return ServerInfo{}, errors.New("failed to shutdown machine. Max timeout exceeded.")
 		}
 	}
 
@@ -238,7 +250,8 @@ func hivelocityApiProvisionOrReset(hveApiKey, instanceId, xnodeId, xnodeAccessTo
 
 		body["period"] = "monthly"
 		// XXX: Might have to change region depending on settings.
-		body["locationName"] = "TPA2" // TODO: Needs to decide this using capacity information.
+		// TODO: Needs to decide this using capacity information.
+		body["locationName"] = "TPA2"
 
 		// XXX: Change this to our product id, or load from env?
 		body["productId"] = "2379"
@@ -256,21 +269,21 @@ func hivelocityApiProvisionOrReset(hveApiKey, instanceId, xnodeId, xnodeAccessTo
 	req.Header = header
 	fmt.Println("Sending request:", req.URL)
 
-	res, err := client.Do(req)
+	response, err := client.Do(req)
 
 	if err != nil {
 		return ServerInfo{}, err
-	} else {
-
-		if isResponseSuccessful(res) {
-			info := serverInfoFromResponse(res)
-			fmt.Println("Got info: ", info)
-			return info, nil
-		} else {
-			message := messageFromResponse(res)
-			return ServerInfo{}, errors.New("Failed to reset or provision. Error: " + message)
-		}
 	}
+
+	if isResponseSuccessful(response) {
+		info := serverInfoFromResponse(response)
+		fmt.Println("Got info: ", info)
+		return info, nil
+	} else {
+		message := messageFromResponse(response)
+		return ServerInfo{}, errors.New("Failed to reset or provision. Error: " + message)
+	}
+
 }
 
 func hivelocityApiProvision(hveApiKey, xnodeId, xnodeAccessToken, xnodeConfigRemote string) (ServerInfo, error) {

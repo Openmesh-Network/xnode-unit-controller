@@ -63,8 +63,9 @@ var vpsCostyearly = math.Ceil((vpsCostMonthly * 12))
 func provision(db *sql.DB, nftId string, xnodeId string, xnodeAccessToken string, xnodeConfigRemote string, timeNFTMinted time.Time) (ServerInfo, error) {
 	// NOTE: For now we assume all NFTs ids are valid.
 	// We trust DPL to only give reliable data.
-
 	// XXX: Add independent verification of NFT.
+	// verifyNftExists(nftId) - NFT-Authorise Library
+
 	row := db.QueryRow("SELECT * FROM deployments WHERE nft = $1", nftId)
 	deployment := Deployment{}
 	err := rowToDeployment(row, &deployment)
@@ -179,14 +180,16 @@ func main() {
 	dbName := os.Getenv("DB_NAME")
 	dbPass := os.Getenv("DB_PASSWORD")
 	dbHost := os.Getenv("DB_HOST")
-	dbPort := os.Getenv("DB_PORT")
+	dbPort := ""
+	if os.Getenv("DB_PORT") != "" {
+		dbPort = os.Getenv("DB_PORT")
+	}
 
 	connectString := fmt.Sprintf(
 		"user=%s dbname=%s password=%s host=%s port=%s sslmode=disable",
 		user, dbName, dbPass, dbHost, dbPort)
 
 	db, dbErr := sql.Open("postgres", connectString)
-
 	if dbErr != nil {
 		panic(dbErr)
 	}

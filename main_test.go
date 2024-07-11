@@ -61,7 +61,7 @@ func TestProvision(t *testing.T) {
 }
 
 func TestMockProvision(t *testing.T) {
-	genericProvision(t, "345")
+	genericProvision(t, "789")
 }
 
 func genericProvision(t *testing.T, nftId string) {

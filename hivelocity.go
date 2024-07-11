@@ -66,14 +66,11 @@ func serverInfoFromResponse(response *http.Response) ServerInfo {
 		return ServerInfo{}
 	}
 
-	fmt.Println(string(data))
-
 	jsonErr := json.Unmarshal(data, &server)
 	if jsonErr != nil {
 		fmt.Println("Error reading response: ", jsonErr)
 		return ServerInfo{}
 	}
-	fmt.Println(server)
 
 	return server
 }
@@ -92,7 +89,7 @@ func hivelocityGetCloudInitKexecScript(xnodeId string, xnodeAccessToken string, 
 func hivelocityGetCloudInitScript(xnodeId string, xnodeAccessToken string, xnodeConfigRemote string) string {
 	init := "#cloud-config \nruncmd: \n - "
 	pullXnodeAssimilate := "curl https://raw.githubusercontent.com/Openmesh-Network/XnodeOS-assimilate/dev/xnodeos-assimilate | "
-	acceptDestroySystem := `ACCEPT_DESTRUCTION_OF_SYSTEM=\"Yes, destroy my system and delete all of my data. I know what I'm doing.\" `
+	acceptDestroySystem := `ACCEPT_DESTRUCTION_OF_SYSTEM="Yes, destroy my system and delete all of my data. I know what I'm doing." `
 	KernelParams := "XNODE_KERNEL_EXTRA_PARAMS=1 XNODE_UUID=" + xnodeId + " XNODE_ACCESS_TOKEN=" + xnodeAccessToken + " XNODE_CONFIG_REMOTE=" + xnodeConfigRemote
 	log := ` bash 2>&1 | tee /tmp/assimilate.log`
 	return init + pullXnodeAssimilate + acceptDestroySystem + KernelParams + log
@@ -146,9 +143,6 @@ func hivelocityApiProvisionOrReset(hveApiKey, instanceId, xnodeId, xnodeAccessTo
 			if isResponseSuccessful(res) {
 				// Check if the machine is down from api.
 				info := serverInfoFromResponse(res)
-				if err != nil {
-					return false, errors.New("Failed to shutdown server.")
-				}
 				fmt.Printf("Found instance %d had power status: %s", info.Id, info.PowerStatus)
 				if info.PowerStatus == "OFF" {
 					return false, nil

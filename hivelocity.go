@@ -110,10 +110,6 @@ func hivelocityGetHeaders(hveApiKey string) http.Header {
 
 // If instanceId is "", then we provision. Otherwise, we reset.
 func hivelocityApiProvisionOrReset(hveApiKey, instanceId, xnodeId, xnodeAccessToken, xnodeConfigRemote string) (ServerInfo, error) {
-
-	// TODO: Make more robust, check region availability before provisioning with /inventory/product/<productid> endpoint.
-	// Also check out /product/<productid>/store endpoint.
-
 	isBeingReset := (instanceId != "")
 
 	client := &http.Client{}
@@ -249,12 +245,21 @@ func hivelocityApiProvisionOrReset(hveApiKey, instanceId, xnodeId, xnodeAccessTo
 
 		body["forceReload"] = true
 	} else {
-		requestMethod = "POST"
+		// If we're not resetting, then we're provisioning and need capacity information.v
+		// TODO: Make more robust, check region availability before provisioning with /inventory/product/<productid> endpoint.
 
+		// Also check out /product/<productid>/store endpoint.
+		requestMethod = "POST"
 		body["period"] = "monthly"
+
 		// XXX: Might have to change region depending on settings.
 		// TODO: Needs to decide this using capacity information.
-		body["locationName"] = "TPA2"
+		locationName, capacityError := hivelocityAvailableRegions(hveApiKey, "2379")
+		if (body["locationName"] == "" || capacityError != nil) && !isBeingReset {
+			fmt.Println("Unable to find any available regions")
+			return ServerInfo{}, errors.New("No available regions.")
+		}
+		body["locationName"] = locationName
 
 		// XXX: Change this to our product id, or load from env?
 		body["productId"] = "2379"
@@ -301,6 +306,7 @@ func hivelocityApiProvision(hveApiKey, xnodeId, xnodeAccessToken, xnodeConfigRem
 			mockIds = strings.Trim(mockIds, "[]")
 			potentialIds = strings.Split(mockIds, ` `)
 		} else {
+			// Can get errors if any of these devices do not exist for the specified API key.
 			potentialIds = []string{"39956", "39954", "39939", "39879", "39878", "39877", "39876", "39875", "39874", "39873", "39872", "39871", "39818", "39817"}
 		}
 
@@ -342,4 +348,39 @@ func hivelocityApiInfo(hveApiKey, instanceId string) (ServerInfo, error) {
 	} else {
 		return ServerInfo{}, errors.New(messageFromResponse(res))
 	}
+}
+
+func hivelocityAvailableRegions(hveApiKey string, productId string) (string, error) {
+	client := &http.Client{}
+	header := hivelocityGetHeaders(hveApiKey)
+
+	req, err := http.NewRequest("GET", "https://core.hivelocity.net/api/v2/inventory/product/"+productId, nil)
+	if err != nil {
+		return "", err
+	}
+
+	req.Header = header
+
+	response, err := client.Do(req)
+	if err != nil {
+		fmt.Println("Error in determining available regions", err)
+		return "", err
+	}
+	var availableRegions map[string]interface{}
+	json.Unmarshal(readall(response.Body), &availableRegions)
+
+	for region := range availableRegions {
+		locations := availableRegions[region].([]interface{})
+
+		for loc := range locations {
+			locationData := locations[loc].(map[string]interface{})
+			availability := locationData["stock"]
+			if availability == "available" {
+				fmt.Printf("Available at %s in region: %s\n", locationData["data_center"], region)
+				return region, nil
+			}
+		}
+	}
+
+	return "", fmt.Errorf("no available regions found")
 }

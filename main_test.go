@@ -4,7 +4,10 @@ import (
 	"bytes"
 	"fmt"
 	"net/http"
+	"os"
 	"testing"
+
+	"github.com/joho/godotenv"
 )
 
 const baseUrl = "http://127.0.0.1:8080"
@@ -58,7 +61,7 @@ func TestProvision(t *testing.T) {
 }
 
 func TestMockProvision(t *testing.T) {
-	genericProvision(t, "789")
+	genericProvision(t, "345")
 }
 
 func genericProvision(t *testing.T, nftId string) {
@@ -75,5 +78,23 @@ func genericProvision(t *testing.T, nftId string) {
 		}
 		respBody := readall(resp.Body)
 		t.Log(string(respBody))
+	}
+}
+
+func TestAvailability(t *testing.T) {
+	// Unit test for hivelocityAvailableRegions
+	err := godotenv.Load(".env")
+	if err != nil {
+		fmt.Println("Couldn't load env variables. Is .env not defined?")
+	}
+	apiKey := os.Getenv("HVE_API_KEY")
+	productId := "2379"
+	t.Log("Using key", apiKey, "finding inventory for", productId)
+
+	availableRegion, capacityError := hivelocityAvailableRegions(apiKey, productId)
+	if capacityError != nil {
+		t.Fatal(capacityError)
+	} else {
+		t.Log("Found availability at", availableRegion)
 	}
 }

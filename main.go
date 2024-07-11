@@ -65,7 +65,6 @@ func provision(db *sql.DB, nftId string, xnodeId string, xnodeAccessToken string
 	// We trust DPL to only give reliable data.
 
 	// XXX: Add independent verification of NFT.
-
 	row := db.QueryRow("SELECT * FROM deployments WHERE nft = $1", nftId)
 	deployment := Deployment{}
 	err := rowToDeployment(row, &deployment)
@@ -124,7 +123,7 @@ func provision(db *sql.DB, nftId string, xnodeId string, xnodeAccessToken string
 				if monthsDifference > 12 {
 					return ServerInfo{}, errors.New("Got expired NFT.")
 				}
-
+				// Calculate the yearly cost
 				projectedCost = (12.0 - monthsDifference) * vpsCostMonthly
 			}
 
@@ -147,11 +146,11 @@ func provision(db *sql.DB, nftId string, xnodeId string, xnodeAccessToken string
 
 				info, err := hivelocityApiProvision(apiKey, xnodeId, xnodeAccessToken, xnodeConfigRemote)
 				if err != nil {
+					fmt.Println("SKIPPED ADDING TO DB; Error in provisioning: ", err)
 					return ServerInfo{}, err
 				}
 
-				// Calculate the yearly cost
-
+				// Add the new server to the database, should never be skipped. Ensure that the program cannot return before INSERT INTO
 				_, err = db.Exec("INSERT INTO deployments (nft, sponsor_id, provider, instance_id, activation_date) VALUES ($1, $2, $3, $4, $5)",
 					nftId, sponsorId, "hivelocity", info.Id, timeNFTMinted)
 

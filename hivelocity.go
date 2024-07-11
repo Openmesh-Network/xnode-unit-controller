@@ -8,7 +8,10 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 	"time"
+
+	"math/rand"
 
 	jp "github.com/buger/jsonparser"
 )
@@ -290,13 +293,24 @@ func hivelocityApiProvision(hveApiKey, xnodeId, xnodeAccessToken, xnodeConfigRem
 
 	if os.Getenv("MOCK_PROVISIONING") == "1" {
 		// Chose random machine and reset instead
-		// TODO: Implement this? ^
 		fmt.Println("Hack, instead of provisioning a full machine. We instead hard code an instance id to always reset")
-		id := "39817"
+		potentialIds := []string{}
+		if os.Getenv("MOCK_DEVICES") != "" {
+			fmt.Println("Using mock device ids")
+			mockIds := os.Getenv("MOCK_DEVICES")
+			mockIds = strings.Trim(mockIds, "[]")
+			potentialIds = strings.Split(mockIds, ` `)
+		} else {
+			potentialIds = []string{"39956", "39954", "39939", "39879", "39878", "39877", "39876", "39875", "39874", "39873", "39872", "39871", "39818", "39817"}
+		}
+
+		// Pick a random device id to reset
+		randomIndex := rand.Intn(len(potentialIds))
+		id := potentialIds[randomIndex]
 		return hivelocityApiProvisionOrReset(hveApiKey, id, xnodeId, xnodeAccessToken, xnodeConfigRemote)
 	} else {
-		// XXX: Hivelocity puts pending charges on a credit card if you provision anything for the account, regardless of invoicing.
-		//	- In this case, Hivelocity marks the machine's status as "verification" which then pauses provisioning.
+		// XXX: Hivelocity puts pending charges on a credit card if you provision anything for the account, regardless if the machine is invoiced on credit.
+		//	- In the case that the card declines, Hivelocity marks the machine's status as "verification" which then pauses provisioning.
 		//		Working with them to fix this in production.
 
 		return hivelocityApiProvisionOrReset(hveApiKey, "", xnodeId, xnodeAccessToken, xnodeConfigRemote)

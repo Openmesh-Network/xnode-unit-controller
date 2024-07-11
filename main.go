@@ -198,7 +198,7 @@ func connectPostgres() (sqlDriver string, postgreSettings string) {
 		"user=%s dbname=%s password=%s host=%s port=%s sslmode=%s",
 		user, dbName, dbPass, dbHost, dbPort, sslMode)
 
-	fmt.Println("Using postgres settings", connectString)
+	fmt.Println("Using postgres settings:", connectString)
 	return dbDriver, connectString
 }
 
@@ -212,6 +212,7 @@ func main() {
 	if ping == nil {
 		fmt.Println("Successfully connected to database.")
 	} else {
+		fmt.Println(ping)
 		panic("Failed to connect to database.")
 	}
 

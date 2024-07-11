@@ -184,12 +184,16 @@ func main() {
 	if os.Getenv("DB_PORT") != "" {
 		dbPort = os.Getenv("DB_PORT")
 	}
+	dbDriver := "postgres"
+	if os.Getenv("DB_DRIVER") != "" {
+		dbDriver = os.Getenv("DB_DRIVER")
+	}
 
 	connectString := fmt.Sprintf(
 		"user=%s dbname=%s password=%s host=%s port=%s sslmode=disable",
 		user, dbName, dbPass, dbHost, dbPort)
 
-	db, dbErr := sql.Open("postgres", connectString)
+	db, dbErr := sql.Open(dbDriver, connectString)
 	if dbErr != nil {
 		panic(dbErr)
 	}

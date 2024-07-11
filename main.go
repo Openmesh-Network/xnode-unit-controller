@@ -188,10 +188,14 @@ func main() {
 	if os.Getenv("DB_DRIVER") != "" {
 		dbDriver = os.Getenv("DB_DRIVER")
 	}
+	sslMode := "disable"
+	if os.Getenv("SSL_MODE") != "" {
+		dbDriver = os.Getenv("SSL_MODE")
+	}
 
 	connectString := fmt.Sprintf(
-		"user=%s dbname=%s password=%s host=%s port=%s sslmode=disable",
-		user, dbName, dbPass, dbHost, dbPort)
+		"user=%s dbname=%s password=%s host=%s port=%s sslmode=%s",
+		user, dbName, dbPass, dbHost, dbPort, sslMode)
 
 	db, dbErr := sql.Open(dbDriver, connectString)
 	if dbErr != nil {

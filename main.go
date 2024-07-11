@@ -171,7 +171,8 @@ func provision(db *sql.DB, nftId string, xnodeId string, xnodeAccessToken string
 	}
 }
 
-func main() {
+func connectPostgres() (sqlDriver string, postgreSettings string) {
+	// Get postgres variables from environment
 	err := godotenv.Load(".env")
 	if err != nil {
 		fmt.Println("Couldn't load env variables. Is .env not defined?")
@@ -190,14 +191,18 @@ func main() {
 	}
 	sslMode := "disable"
 	if os.Getenv("SSL_MODE") != "" {
-		dbDriver = os.Getenv("SSL_MODE")
+		sslMode = os.Getenv("SSL_MODE")
 	}
 
 	connectString := fmt.Sprintf(
 		"user=%s dbname=%s password=%s host=%s port=%s sslmode=%s",
 		user, dbName, dbPass, dbHost, dbPort, sslMode)
 
-	db, dbErr := sql.Open(dbDriver, connectString)
+	return dbDriver, connectString
+}
+
+func main() {
+	db, dbErr := sql.Open(connectPostgres())
 	if dbErr != nil {
 		panic(dbErr)
 	}

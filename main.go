@@ -198,6 +198,7 @@ func connectPostgres() (sqlDriver string, postgreSettings string) {
 		"user=%s dbname=%s password=%s host=%s port=%s sslmode=%s",
 		user, dbName, dbPass, dbHost, dbPort, sslMode)
 
+	fmt.Println("Using postgres settings", connectString)
 	return dbDriver, connectString
 }
 

@@ -1,0 +1,1 @@
+INSERT INTO sponsors (api_key, credit_initial) VALUES ('ADD_SPONSOR_API_KEY', 1000.00)

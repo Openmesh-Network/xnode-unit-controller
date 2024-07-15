@@ -171,7 +171,7 @@ func hivelocityApiProvisionOrReset(hveApiKey, instanceId, xnodeId, xnodeAccessTo
 		}
 
 		// XXX: Took more than 30 seconds????
-		const ATTEMPT_MAX_TRIES = 20
+		const ATTEMPT_MAX_TRIES = 50
 		const ATTEMPT_COOLDOWN_TIME = time.Millisecond * 1500
 
 		fmt.Println("Checking if machine is off.")

@@ -124,7 +124,8 @@ func provision(db *sql.DB, nftId string, xnodeId string, xnodeAccessToken string
 				if monthsDifference > 12 {
 					return ServerInfo{}, errors.New("Got expired NFT.")
 				}
-				// Calculate the yearly cost
+
+				// Calculate the yearly cost.
 				projectedCost = (12.0 - monthsDifference) * vpsCostMonthly
 			}
 

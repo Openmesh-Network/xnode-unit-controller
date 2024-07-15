@@ -1,2 +1,3 @@
 .env
 xnode-unit-controller
+go.sum

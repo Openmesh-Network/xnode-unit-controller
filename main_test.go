@@ -91,7 +91,7 @@ func TestAvailability(t *testing.T) {
 	productId := "2379"
 	t.Log("Using key", apiKey, "finding inventory for", productId)
 
-	availableRegion, capacityError := hivelocityAvailableRegions(apiKey, productId)
+	availableRegion, capacityError := hivelocityFirstAvailableRegion(apiKey, productId)
 	if capacityError != nil {
 		t.Fatal(capacityError)
 	} else {

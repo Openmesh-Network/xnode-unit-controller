@@ -170,6 +170,7 @@ func hivelocityApiProvisionOrReset(hveApiKey, instanceId, xnodeId, xnodeAccessTo
 			}
 		}
 
+		// XXX: Took more than 30 seconds????
 		const ATTEMPT_MAX_TRIES = 20
 		const ATTEMPT_COOLDOWN_TIME = time.Millisecond * 1500
 
@@ -248,7 +249,7 @@ func hivelocityApiProvisionOrReset(hveApiKey, instanceId, xnodeId, xnodeAccessTo
 
 		// XXX: Might have to change region depending on settings.
 		// TODO: Needs to decide this using capacity information.
-		locationName, capacityError := hivelocityAvailableRegions(hveApiKey, "2379")
+		locationName, capacityError := hivelocityFirstAvailableRegion(hveApiKey, "2379")
 		if (body["locationName"] == "" || capacityError != nil) && !isBeingReset {
 			fmt.Println("Unable to find any available regions")
 			return ServerInfo{}, errors.New("No available regions.")
@@ -344,7 +345,7 @@ func hivelocityApiInfo(hveApiKey, instanceId string) (ServerInfo, error) {
 	}
 }
 
-func hivelocityAvailableRegions(hveApiKey string, productId string) (string, error) {
+func hivelocityFirstAvailableRegion(hveApiKey string, productId string) (string, error) {
 	client := &http.Client{}
 	header := hivelocityGetHeaders(hveApiKey)
 
@@ -360,21 +361,29 @@ func hivelocityAvailableRegions(hveApiKey string, productId string) (string, err
 		fmt.Println("Error in determining available regions", err)
 		return "", err
 	}
-	var availableRegions map[string]interface{}
-	json.Unmarshal(readall(response.Body), &availableRegions)
 
-	for region := range availableRegions {
-		locations := availableRegions[region].([]interface{})
+	if isResponseSuccessful(response) {
+		var availableRegions map[string]interface{}
+		json.Unmarshal(readall(response.Body), &availableRegions)
 
-		for loc := range locations {
-			locationData := locations[loc].(map[string]interface{})
-			availability := locationData["stock"]
-			if availability == "available" {
-				fmt.Printf("Available at %s in region: %s\n", locationData["data_center"], region)
-				return region, nil
+		for region := range availableRegions {
+			fmt.Println("Region: ", region)
+			// fmt.Println("Available: ", availableRegions)
+			locations := availableRegions[region].([]interface{})
+
+			for loc := range locations {
+				locationData := locations[loc].(map[string]interface{})
+				availability := locationData["stock"]
+				if availability == "available" {
+					fmt.Printf("Available at %s in region: %s\n", locationData["data_center"], region)
+					return region, nil
+				}
 			}
 		}
-	}
 
-	return "", fmt.Errorf("no available regions found")
+		return "", fmt.Errorf("no available regions found")
+	} else {
+		err := errors.New("Request to find regions failed. Is the API key correct?")
+		return "", err
+	}
 }

@@ -43,18 +43,17 @@ So, until that's fixed we can't really test it completely (Since we need the API
 
 ## TODO
 - [X] Parse env vars to get database info.
-- [O] Add provision endpoint.
+- [X] Add provision endpoint.
     - [X] Database logic.
     - [X] Add hivelocity provisioning API.
-    - [O] Add hivelocity reset API.
+    - [X] Add hivelocity reset API.
         - [X] Shutdown
         - [X] Wait
-        - [o] Provision
+        - [X] Provision
             - [X] API
-            - [ ] Hivelocity marks the servers as "verification" status for whatever reason .
-    - [o] Test the APIs work.
+    - [X] Test the APIs work.
         - [X] Test reset API works.
-        - [ ] Set provision api to do round robin over known keys
+        - [X] Set provision api to do round robin over known keys
             - We know that the api for deploy and for provision return the same json anyways, so we should be good.
 - [X] Add transactions to avoid race conditions!
 - [X] Modify database logic for new tables.
@@ -69,10 +68,11 @@ So, until that's fixed we can't really test it completely (Since we need the API
 - [X] Add info endpoint.
     - Just parse the hivelocity info endpoint.
     - Why exactly is this needed? I'll integrate the dpl first and then see what's happened.
-- [ ] Re-enable the provisioning.
-    - [ ] SAD, hivelocity doesn't always provision servers on our account. Have started a chat with them on slack, but can't do anything until they confirm what's going on.
-- [ ] Add mock provisioning.
-    - [ ] Add an environment variable that "provisions" by resetting a machine from an existing set of machines instead of actually deploying a new vps every time.
+- [X] Re-enable the provisioning.
+    - [X] SAD, hivelocity doesn't always provision servers on our account. Have started a chat with them on slack, but can't do anything until they confirm what's going on.
+    - The issue still persists, we're talking to hivelocity for them to find a fix.
+- [X] Add mock provisioning.
+    - [X] Add an environment variable that "provisions" by resetting a machine from an existing set of machines instead of actually deploying a new vps every time.
     - This would massively simplify testing.
 - [X] Estimate cost based on NFT time not just 12 month time.
     - Take NFT activation date (From DPL) and assign enough credit for 12 - months since activation time.
@@ -97,6 +97,7 @@ So, until that's fixed we can't really test it completely (Since we need the API
         - Sponsor ID
         - NFT ID
 - [ ] Add new cloud-init script.
+- [X] Chose region based on availability API.
 - [ ] Add more constraints to database to prevent entry errors?
     - [ ] Make sure there can be no newlines on the strings.
     - [ ] Credits should be minimum 1k maybe?

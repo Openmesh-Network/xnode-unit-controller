@@ -174,7 +174,6 @@ func hivelocityApiProvisionOrReset(hveApiKey, instanceId, xnodeId, xnodeAccessTo
 		const ATTEMPT_MAX_TRIES = 20
 		const ATTEMPT_COOLDOWN_TIME = time.Millisecond * 1500
 
-		// See if it's on.
 		fmt.Println("Checking if machine is off.")
 		poweredOn, err := shutdownOrCheckPower(false)
 
@@ -240,15 +239,10 @@ func hivelocityApiProvisionOrReset(hveApiKey, instanceId, xnodeId, xnodeAccessTo
 
 		body["forceReload"] = true
 	} else {
-		// If we're not resetting, then we're provisioning and need capacity information.v
-		// TODO: Make more robust, check region availability before provisioning with /inventory/product/<productid> endpoint.
-
 		// Also check out /product/<productid>/store endpoint.
 		requestMethod = "POST"
 		body["period"] = "monthly"
 
-		// XXX: Might have to change region depending on settings.
-		// TODO: Needs to decide this using capacity information.
 		locationName, capacityError := hivelocityFirstAvailableRegion(hveApiKey, "2379")
 		if (body["locationName"] == "" || capacityError != nil) && !isBeingReset {
 			fmt.Println("Unable to find any available regions")
@@ -286,7 +280,6 @@ func hivelocityApiProvisionOrReset(hveApiKey, instanceId, xnodeId, xnodeAccessTo
 		message := messageFromResponse(response)
 		return ServerInfo{}, errors.New("Failed to reset or provision. Error: " + message)
 	}
-
 }
 
 func hivelocityApiProvision(hveApiKey, xnodeId, xnodeAccessToken, xnodeConfigRemote string) (ServerInfo, error) {
@@ -301,11 +294,11 @@ func hivelocityApiProvision(hveApiKey, xnodeId, xnodeAccessToken, xnodeConfigRem
 			mockIds = strings.Trim(mockIds, "[]")
 			potentialIds = strings.Split(mockIds, ` `)
 		} else {
-			// Can get errors if any of these devices do not exist for the specified API key.
+			// XXX: Can get errors if any of these devices do not exist for the specified API key.
 			potentialIds = []string{"39956", "39954", "39939", "39879", "39878", "39877", "39876", "39875", "39874", "39873", "39872", "39871", "39818", "39817"}
 		}
 
-		// Pick a random device id to reset
+		// Pick a random device id to reset.
 		randomIndex := rand.Intn(len(potentialIds))
 		id := potentialIds[randomIndex]
 		return hivelocityApiProvisionOrReset(hveApiKey, id, xnodeId, xnodeAccessToken, xnodeConfigRemote)
@@ -381,7 +374,7 @@ func hivelocityFirstAvailableRegion(hveApiKey string, productId string) (string,
 			}
 		}
 
-		return "", fmt.Errorf("no available regions found")
+		return "", fmt.Errorf("No available regions found.")
 	} else {
 		err := errors.New("Request to find regions failed. Is the API key correct?")
 		return "", err

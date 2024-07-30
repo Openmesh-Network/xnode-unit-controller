@@ -191,11 +191,11 @@ func genericProvision(t *testing.T, nftId string) {
 
 func TestAvailability(t *testing.T) {
 	// Unit test for hivelocityAvailableRegions
-	err := godotenv.Load(".env")
+	err := godotenv.Load(".env.test")
 	if err != nil {
-		fmt.Println("Couldn't load env variables. Is .env not defined?")
+		fmt.Println("Couldn't load env variables. Is .env.test not defined?")
 	}
-	apiKey := os.Getenv("HVE_API_KEY")
+	apiKey := os.Getenv("TEST_API_KEY")
 	productId := "2379"
 	t.Log("Using key", apiKey, "finding inventory for", productId)
 

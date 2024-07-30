@@ -42,6 +42,7 @@ func isResponseSuccessful(response *http.Response) bool {
 
 func messageFromResponse(response *http.Response) string {
 	data, err := io.ReadAll(response.Body)
+	fmt.Println(data)
 
 	if err != nil {
 		fmt.Println("Error reading response: ", err)
@@ -50,7 +51,9 @@ func messageFromResponse(response *http.Response) string {
 		message, err := jp.GetString(data)
 
 		if err != nil {
-			fmt.Println("Error reading response: ", err)
+			fmt.Println(response.Status)
+			fmt.Println(string(data))
+			fmt.Println("Error reading response message: ", err)
 			return ""
 		} else {
 			return message
@@ -62,13 +65,14 @@ func serverInfoFromResponse(response *http.Response) ServerInfo {
 	var server ServerInfo
 	data, readErr := io.ReadAll(response.Body)
 	if readErr != nil {
-		fmt.Println("Error reading response: ", readErr)
+		fmt.Println("Error reading response data: ", readErr)
 		return ServerInfo{}
 	}
 
 	jsonErr := json.Unmarshal(data, &server)
 	if jsonErr != nil {
-		fmt.Println("Error reading response: ", jsonErr)
+		fmt.Println(string(data))
+		fmt.Println("Error reading response info: ", jsonErr)
 		return ServerInfo{}
 	}
 
@@ -151,13 +155,13 @@ func hivelocityApiProvisionOrReset(hveApiKey, instanceId, xnodeId, xnodeAccessTo
 					return true, nil
 				}
 			} else {
-				_, err := io.ReadAll(res.Body)
+				data, err := io.ReadAll(res.Body)
 				if err != nil {
 					return false, errors.New("Hivelocity API didn't return a valid response body on shutdown / info request.")
 				}
 
 				if res.StatusCode == 400 {
-					message := "Request failed, likely because we're trying to deploy while the server is reloading. Error response: " + messageFromResponse(res)
+					message := "Request failed, likely because we're trying to deploy while the server is reloading. Error response: " + string(data)
 					return false, errors.New(message)
 				} else if res.StatusCode == 403 {
 					message := "Request failed, authorization invalid."
@@ -165,7 +169,7 @@ func hivelocityApiProvisionOrReset(hveApiKey, instanceId, xnodeId, xnodeAccessTo
 					return false, errors.New(message)
 				}
 
-				fmt.Println("Code should never reach this point. This means our API key doesn't have authorization. Error response: ", messageFromResponse(res), res.StatusCode)
+				fmt.Println("Code should never reach this point. This means our API key doesn't have authorization. Error response: ", data, res.StatusCode)
 				return false, errors.New("Couldn't provide server.")
 			}
 		}
@@ -286,7 +290,7 @@ func hivelocityApiProvision(hveApiKey, xnodeId, xnodeAccessToken, xnodeConfigRem
 
 	if os.Getenv("MOCK_PROVISIONING") == "1" {
 		// Chose random machine and reset instead
-		fmt.Println("Hack, instead of provisioning a full machine. We instead hard code an instance id to always reset")
+		fmt.Println("Hack, instead of provisioning a full machine. We  an instance id to always reset")
 		potentialIds := []string{}
 		if os.Getenv("MOCK_DEVICES") != "" {
 			fmt.Println("Using mock device ids")
@@ -294,8 +298,7 @@ func hivelocityApiProvision(hveApiKey, xnodeId, xnodeAccessToken, xnodeConfigRem
 			mockIds = strings.Trim(mockIds, "[]")
 			potentialIds = strings.Split(mockIds, ` `)
 		} else {
-			// XXX: Can get errors if any of these devices do not exist for the specified API key.
-			potentialIds = []string{"39956", "39954", "39939", "39879", "39878", "39877", "39876", "39875", "39874", "39873", "39872", "39871", "39818", "39817"}
+			panic("No MOCK_DEVICES specified and MOCK_PROVISIONING flag is on! Specify some devices on the .env.")
 		}
 
 		// Pick a random device id to reset.
@@ -303,10 +306,6 @@ func hivelocityApiProvision(hveApiKey, xnodeId, xnodeAccessToken, xnodeConfigRem
 		id := potentialIds[randomIndex]
 		return hivelocityApiProvisionOrReset(hveApiKey, id, xnodeId, xnodeAccessToken, xnodeConfigRemote)
 	} else {
-		// XXX: Hivelocity puts pending charges on a credit card if you provision anything for the account, regardless if the machine is invoiced on credit.
-		//	- In the case that the card declines, Hivelocity marks the machine's status as "verification" which then pauses provisioning.
-		//		Working with them to fix this in production.
-
 		return hivelocityApiProvisionOrReset(hveApiKey, "", xnodeId, xnodeAccessToken, xnodeConfigRemote)
 	}
 }

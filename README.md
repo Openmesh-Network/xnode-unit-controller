@@ -38,8 +38,15 @@ And also:
 
 For testing, set all the sponsors to the same API key and manually call the endpoint.
 
-Also, there's currently (7-7-2024) an issue with hivelocity where they mark the servers deployed with our product id on their api as "verification" status.
-So, until that's fixed we can't really test it completely (Since we need the API to return an ip for the system to work).
+~~Also, there's currently (7-07-2024) an issue with hivelocity where they mark the servers deployed with our product id on their api as "verification" status.~~
+~~So, until that's fixed we can't really test it completely (Since we need the API to return an ip for the system to work).~~
+This has now been fixed (30-07-2024).
+
+## Testing
+1. Set up docker postgres database.
+2. Hivelocity tests will require an API key.
+3. 
+
 
 ## TODO
 - [X] Parse env vars to get database info.
@@ -81,8 +88,6 @@ So, until that's fixed we can't really test it completely (Since we need the API
     - [X] API calls should return errors on failure.
     - [X] Check status code of responses.
 - [ ] Clean up TODOs.
-- [ ] Generate table if not provided.
-    - Use the sql file?
 - [ ] What does SSL mode do? Might have to enable it for railway?
 - [X] Add new table for sponsors
     - [X] Api keys
@@ -98,14 +103,25 @@ So, until that's fixed we can't really test it completely (Since we need the API
         - NFT ID
 - [ ] Add new cloud-init script.
 - [X] Chose region based on availability API.
-- [ ] Add more constraints to database to prevent entry errors?
-    - [ ] Make sure there can be no newlines on the strings.
-    - [ ] Credits should be minimum 1k maybe?
-- [ ] Improve logs so that they include request information.
-    - [ ] Which nft is being targetted at least + XnodeId
+- [o] Testing:
+	- [X] Test the system can handle all database events correctly.
+    - [X] Test disabling a sponsor doesn't alter it.
+	- [X] Test a full deployment works (Up to deploying the machine).
+	- [ ] Test the environment variables?
+	- [ ] Test the system can handle all hivelocity API responses gracefully.
+	- [ ] Test the hivelocity apis are up and working.
+	- [ ] Test the database can handle 10000 random deployments.
+        - Have to mock hivelocity api for this to work.
+- [ ] Generate table if not provided.
+    - Use the sql file?
+
 ## Maybe worth exploring?
 - [ ] Generic cloud-init options converter.
     - Turn arguments to proc cmdline things.
+- [ ] Add more constraints to database to prevent entry errors?
+    - [ ] Credits should be minimum 1k maybe?
+- [ ] Improve logs so that they include request information.
+    - [ ] Which nft is being targetted at least + XnodeId
 
 ## Before launch
 - [ ] Might have to enable special account permission on subaccount.

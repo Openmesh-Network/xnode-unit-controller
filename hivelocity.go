@@ -215,6 +215,7 @@ func hivelocityApiProvisionOrReset(hveApiKey, instanceId, xnodeId, xnodeAccessTo
 
 		if !poweredOn {
 			// Good stuff.
+			fmt.Println()
 			fmt.Println("Succesfully shut machine down.")
 		} else {
 			// Not good, there's some issue.

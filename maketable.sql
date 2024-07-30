@@ -2,7 +2,8 @@ CREATE TABLE IF NOT EXISTS sponsors (
 	sponsor_id SERIAL PRIMARY KEY,
 	api_key VARCHAR(200) NOT NULL,
 	credit_initial NUMERIC(11, 2) NOT NULL,
-	credit_spent NUMERIC(11, 2) NOT NULL DEFAULT 0
+	credit_spent NUMERIC(11, 2) NOT NULL DEFAULT 0,
+	enabled BOOLEAN NOT NULL DEFAULT FALSE
 );
 
 CREATE TABLE IF NOT EXISTS deployments (
@@ -23,10 +24,13 @@ FROM sponsors;
 /*
 SELECT sponsor_id, api_key, (CAST(credit_spent AS FLOAT) / CAST(credit_initial AS FLOAT)) AS ratio
 FROM sponsors
-WHERE credit_initial - credit_spent > (9.15 * 12)
+WHERE credit_initial - credit_spent > (9.15 * 12) AND enabled
 ORDER BY ratio ASC;
 */
 
 /* 
 UPDATE sponsors SET credit_spent = credit_spent + $1 WHERE sponsor_id = $2;
+*/
+
+/*
 */

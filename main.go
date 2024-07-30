@@ -26,6 +26,14 @@ type Deployment struct {
 	activation_date sql.NullTime
 }
 
+type Sponsor struct {
+	sponsor_id     int
+	api_key        string
+	credit_initial float64
+	credit_spent   float64
+	enabled        bool
+}
+
 type ProvisionRequestBody struct {
 	XnodeId           string `json:"xnodeId"`
 	XnodeAccessToken  string `json:"xnodeAccessToken"`
@@ -102,8 +110,10 @@ func provision(db *sql.DB, nftId string, xnodeId string, xnodeAccessToken string
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			// XXX: Might have to make this a serializeable transaction to 100% avoid race conditions (Check definition of BeginTx for what args to pass).
-			tx, err := db.BeginTx(ctx, nil)
+			// NOTE: Serializable to guarantee no race conditions.
+			txOptions := sql.TxOptions{Isolation: sql.LevelSerializable}
+
+			tx, err := db.BeginTx(ctx, &txOptions)
 			if err != nil {
 				panic(err)
 			}
@@ -132,7 +142,7 @@ func provision(db *sql.DB, nftId string, xnodeId string, xnodeAccessToken string
 			row := db.QueryRow(
 				`SELECT sponsor_id, api_key, (CAST(credit_spent AS FLOAT) / CAST(credit_initial AS FLOAT)) AS ratio
 				FROM sponsors
-				WHERE credit_initial - credit_spent > ($1)
+				WHERE credit_initial - credit_spent > ($1) AND enabled
 				ORDER BY ratio ASC;`, projectedCost)
 
 			sponsorId := 0
@@ -143,6 +153,7 @@ func provision(db *sql.DB, nftId string, xnodeId string, xnodeAccessToken string
 
 			if err != nil {
 				// TODO: Return "Capacity reached, try again later" to the user in frontend.
+				fmt.Println("Capacity reached! Can't provision more servers?")
 				return ServerInfo{}, errors.New("Error couldn't find viable sponsor: " + err.Error())
 			} else {
 
@@ -178,6 +189,7 @@ func connectPostgres() (sqlDriver string, postgreSettings string) {
 	if err != nil {
 		fmt.Println("Couldn't load env variables. Is .env not defined?")
 	}
+
 	user := os.Getenv("DB_USER")
 	dbName := os.Getenv("DB_NAME")
 	dbPass := os.Getenv("DB_PASSWORD")
@@ -217,21 +229,53 @@ func main() {
 		panic("Failed to connect to database.")
 	}
 
-	{ // XXX: Delete this, it's just for reference.
-		rows, err := db.Query("SELECT * FROM deployments")
-		defer rows.Close()
+	// Sanity check both tables match internal schema format:
+	{
+		{
+			rows, err := db.Query("SELECT * FROM deployments")
+			defer rows.Close()
 
-		if err != nil {
-			panic(err)
-		} else {
-			fmt.Println("Looking through rows.")
-			for rows.Next() {
-				var deployment Deployment
+			if err != nil {
+				panic(err)
+			} else {
+				fmt.Println("Looking through rows.")
+				for rows.Next() {
+					var deployment Deployment
 
-				rowsToDeployment(rows, &deployment)
-				fmt.Println("Entries", deployment.nft)
+					err := rowsToDeployment(rows, &deployment)
+					if err != nil {
+						fmt.Println("Deployment definition in database doesn't match local definition! Exiting")
+						panic(err)
+					} else {
+						fmt.Println("Entries", deployment.nft)
+					}
+				}
+				rows.Close()
 			}
-			rows.Close()
+		}
+
+		{ // Check sponsors table:
+			rows, err := db.Query("SELECT * FROM sponsors")
+			defer rows.Close()
+
+			if err != nil {
+				panic(err)
+			} else {
+				fmt.Println("Looking through rows.")
+				for rows.Next() {
+					var sponsor Sponsor
+
+					err := rows.Scan(&sponsor.sponsor_id, &sponsor.api_key, &sponsor.credit_initial, &sponsor.credit_spent)
+
+					if err != nil {
+						fmt.Println("Sponsor definition in database doesn't match local definition! Exiting")
+						panic(err)
+					} else {
+						fmt.Println("Sponsor: ", sponsor)
+					}
+				}
+				rows.Close()
+			}
 		}
 	}
 
@@ -249,6 +293,7 @@ func main() {
 			})
 			return
 		}
+
 		// TODO: Sanity check on data parsed to requestBody
 		uuid, psk, remote, activationTime := parseProvisionReq(requestBody)
 		info, err := provision(db, nftId, uuid, psk, remote, activationTime)

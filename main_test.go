@@ -23,20 +23,11 @@ func TestRoundtrip(t *testing.T) {
 		}
 	}
 
-	setEnv := func(key string, value string) {
-		failOnError(os.Setenv(key, value))
-	}
-
 	t.Log("Setting mock env variables.")
-	setEnv("DB_HOST", "localhost")
-	setEnv("DB_NAME", "postgres")
-	// XXX: Change this to match script in readme.
-	setEnv("DB_PORT", "5432")
-	setEnv("DB_USER", "postgres")
-	setEnv("GIN_MODE", "debug")
-	// Don't want to actually provision any machines.
-	setEnv("MOCK_PROVISIONING", "1")
-
+	err := godotenv.Load(".env.test")
+	if err != nil {
+		t.Fatal("Need a .env.test file to load hivelocity API key for testing.")
+	}
 	assert.Equal("localhost", os.Getenv("DB_HOST"), "Make sure that we're running testing on localhost and not on a remote database! Make sure your env points to a local database and NOT production!!!")
 
 	// Connect to postgres database.
@@ -116,10 +107,6 @@ func TestRoundtrip(t *testing.T) {
 	db.Exec("DELETE FROM sponsors WHERE sponsor_id=9999")
 
 	// Done should test with valid api key now
-	err = godotenv.Load(".env.test")
-	if err != nil {
-		t.Fatal("Need a .env.test file to load hivelocity API key for testing.")
-	}
 	api_key := os.Getenv("TEST_API_KEY")
 
 	if api_key == "" {

@@ -185,10 +185,6 @@ func provision(db *sql.DB, nftId string, xnodeId string, xnodeAccessToken string
 
 func connectPostgres() (sqlDriver string, postgreSettings string) {
 	// Get postgres variables from environment
-	err := godotenv.Load(".env")
-	if err != nil {
-		fmt.Println("Couldn't load env variables. Is .env not defined?")
-	}
 
 	user := os.Getenv("DB_USER")
 	dbName := os.Getenv("DB_NAME")
@@ -217,6 +213,10 @@ func connectPostgres() (sqlDriver string, postgreSettings string) {
 
 func main() {
 	db, dbErr := sql.Open(connectPostgres())
+	err := godotenv.Load(".env")
+	if err != nil {
+		fmt.Println("Couldn't load env variables. Is .env not defined?")
+	}
 	if dbErr != nil {
 		panic(dbErr)
 	}

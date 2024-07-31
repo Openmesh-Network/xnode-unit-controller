@@ -297,7 +297,8 @@ func hivelocityApiProvision(hveApiKey, xnodeId, xnodeAccessToken, xnodeConfigRem
 			fmt.Println("Using mock device ids")
 			mockIds := os.Getenv("MOCK_DEVICES")
 			mockIds = strings.Trim(mockIds, "[]")
-			potentialIds = strings.Split(mockIds, ` `)
+			potentialIds = strings.Split(mockIds, " ")
+			fmt.Println("Potential ids: ", potentialIds)
 		} else {
 			panic("No MOCK_DEVICES specified and MOCK_PROVISIONING flag is on! Specify some devices on the .env.")
 		}
@@ -305,6 +306,8 @@ func hivelocityApiProvision(hveApiKey, xnodeId, xnodeAccessToken, xnodeConfigRem
 		// Pick a random device id to reset.
 		randomIndex := rand.Intn(len(potentialIds))
 		id := potentialIds[randomIndex]
+		fmt.Println("Chosing id: ", id, ", out of: ", potentialIds)
+
 		return hivelocityApiProvisionOrReset(hveApiKey, id, xnodeId, xnodeAccessToken, xnodeConfigRemote)
 	} else {
 		return hivelocityApiProvisionOrReset(hveApiKey, "", xnodeId, xnodeAccessToken, xnodeConfigRemote)

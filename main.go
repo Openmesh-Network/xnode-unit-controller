@@ -265,7 +265,7 @@ func main() {
 				for rows.Next() {
 					var sponsor Sponsor
 
-					err := rows.Scan(&sponsor.sponsor_id, &sponsor.api_key, &sponsor.credit_initial, &sponsor.credit_spent)
+					err := rows.Scan(&sponsor.sponsor_id, &sponsor.api_key, &sponsor.credit_initial, &sponsor.credit_spent, &sponsor.enabled)
 
 					if err != nil {
 						fmt.Println("Sponsor definition in database doesn't match local definition! Exiting")
